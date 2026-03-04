@@ -1,0 +1,73 @@
+# EROS Unified Bazel Configuration File
+# This file contains common Bazel configurations for all EROS projects
+# Projects can import this configuration via the import statement
+#
+# Usage: Add the following to your project's .bazelrc file:
+#   try-import %workspace%/../../forge/bazel/bazelrc
+#
+# Or set the BAZELRC environment variable to point to this file
+
+# =============================================================================
+# Cross-compilation Configuration
+# =============================================================================
+#
+# Build configurations:
+# - build:x86_64      : x86_64 native compilation (on x86_64 host)
+# - build:arm64       : ARM64 native compilation (on ARM64 host)
+# - build:cross_arm64 : Cross-compilation from x86_64 to ARM64 (uses custom glibc)
+#
+# IMPORTANT: Do not assume host architecture. Use the appropriate config for your target.
+# For native builds, Bazel automatically detects the host platform and selects the
+# appropriate toolchain. Only use cross_arm64 when cross-compiling.
+
+# x86_64 native compilation (on x86_64 host)
+# Uses auto-detected host platform, just ensure toolchain selection
+build:x86_64 --crosstool_top=@eros_forge//bazel/toolchain:toolchain
+build:x86_64 --cpu=x86_64
+build:x86_64 --compiler=gcc
+
+# ARM64 native compilation (on ARM64 host)
+# Uses auto-detected host platform, just ensure toolchain selection
+build:arm64 --crosstool_top=@eros_forge//bazel/toolchain:toolchain
+build:arm64 --cpu=aarch64
+build:arm64 --compiler=gcc
+
+# Cross-compilation: x86_64 host -> ARM64 target
+# This configuration embeds /opt/eros/lib as the custom glibc path
+# Programs will automatically use /opt/eros/lib/ld-linux-aarch64.so.1 as the dynamic linker
+# This allows running on target systems with older glibc without manual loader invocation
+build:cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_cross
+build:cross_arm64 --crosstool_top=@eros_forge//bazel/toolchain:toolchain
+build:cross_arm64 --cpu=aarch64
+build:cross_arm64 --compiler=gcc
+build:cross_arm64 --features=custom_glibc
+
+# Enable CC toolchain resolution
+build --incompatible_enable_cc_toolchain_resolution
+
+# =============================================================================
+# Default Build Settings
+# =============================================================================
+
+# C++ Standard
+build --cxxopt=-std=c++20
+build --host_cxxopt=-std=c++20
+
+# =============================================================================
+# Release Build Settings
+# =============================================================================
+build:release --compilation_mode=opt
+build:release --copt=-O2
+build:release --copt=-DNDEBUG
+
+# =============================================================================
+# Debug Build Settings
+# =============================================================================
+build:debug --compilation_mode=dbg
+build:debug --copt=-g
+
+# =============================================================================
+# Test Settings
+# =============================================================================
+test --test_output=errors
+test --test_verbose_timeout_warnings

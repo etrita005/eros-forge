@@ -1,0 +1,35 @@
+# clangd configuration file template for EROS projects
+# See https://clangd.llvm.org/config for details
+#
+# Usage:
+# 1. Copy this template to your project root as .clangd
+# 2. Replace {{PROJECT_ROOT}} with actual project path
+# 3. Add extra include paths as needed for your project
+
+CompileFlags:
+  # Add C++20 standard
+  Add: 
+    - -std=c++20
+    - -Wall
+    - -Wextra
+    - -I{{PROJECT_ROOT}}/include
+  # Remove any unwanted flags inherited from compile_commands.json
+  Remove: []
+
+Index:
+  # Enable background indexing
+  Background: Build
+
+Diagnostics:
+  # Enable all clang-tidy checks
+  ClangTidy:
+    Add: []
+    Remove: []
+
+Completion:
+  # Enable all completion features
+  AllScopes: true
+
+Hover:
+  # Show more information in hover tooltips
+  ShowAKA: true

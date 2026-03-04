@@ -1,0 +1,19 @@
+module(
+    name = "eros_forge",
+    version = "0.1.0",
+    compatibility_level = 1,
+)
+
+# Dependencies
+bazel_dep(name = "rules_cc", version = "0.2.14")
+bazel_dep(name = "platforms", version = "1.0.0")
+
+# Register toolchains for all EROS projects
+# - cc-toolchain-x86_64-linux: x86_64 native compilation (on x86_64 host)
+# - cc-toolchain-arm64-linux-native: ARM64 native compilation (on ARM64 host)
+# - cc-toolchain-arm64-linux-cross: Cross-compilation from x86_64 to ARM64
+register_toolchains(
+    "//bazel/toolchain:cc-toolchain-x86_64-linux",
+    "//bazel/toolchain:cc-toolchain-arm64-linux-native",
+    "//bazel/toolchain:cc-toolchain-arm64-linux-cross",
+)
