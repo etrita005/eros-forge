@@ -6,6 +6,7 @@ module(
 
 # Dependencies
 bazel_dep(name = "rules_cc", version = "0.2.14")
+bazel_dep(name = "rules_pkg", version = "1.0.1")
 bazel_dep(name = "platforms", version = "1.0.0")
 
 # Register toolchains for all EROS projects

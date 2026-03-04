@@ -22,12 +22,14 @@
 
 # x86_64 native compilation (on x86_64 host)
 # Uses auto-detected host platform, just ensure toolchain selection
+build:x86_64 --platforms=@eros_forge//bazel/toolchain:linux_x86_64
 build:x86_64 --crosstool_top=@eros_forge//bazel/toolchain:toolchain
 build:x86_64 --cpu=x86_64
 build:x86_64 --compiler=gcc
 
 # ARM64 native compilation (on ARM64 host)
 # Uses auto-detected host platform, just ensure toolchain selection
+build:arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64
 build:arm64 --crosstool_top=@eros_forge//bazel/toolchain:toolchain
 build:arm64 --cpu=aarch64
 build:arm64 --compiler=gcc
@@ -44,6 +46,9 @@ build:cross_arm64 --features=custom_glibc
 
 # Enable CC toolchain resolution
 build --incompatible_enable_cc_toolchain_resolution
+
+# Allow DEB_VERSION environment variable to be passed to actions
+build --action_env=DEB_VERSION
 
 # =============================================================================
 # Default Build Settings

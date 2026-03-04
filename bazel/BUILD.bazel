@@ -1,0 +1,6 @@
+# EROS Forge Bazel Extensions
+# This package contains Bazel build rules and macros for EROS projects
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["deb.bzl", "bazelrc"])
