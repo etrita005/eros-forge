@@ -5,118 +5,31 @@ load("@rules_cc//cc/toolchains:cc_toolchain_config_info.bzl", "CcToolchainConfig
 ACTION_NAMES = struct(
     c_compile = "c-compile",
     cpp_compile = "c++-compile",
-    linkstamp_compilation = "linkstamp-compilation",
-    cc_flags_make_variable = "cc-flags-make-variable",
-    cpp_module_compile = "c++-module-compile",
-    cpp_module_codegen = "c++-module-codegen",
-    cpp_header_parsing = "c++-header-parsing",
     cpp_link_executable = "c++-link-executable",
-    cpp_link_dynamic_library = "c++-link-dynamic-library",
-    cpp_link_nodeps_dynamic_library = "c++-link-nodeps-dynamic-library",
-    cpp_link_static_library = "c++-link-static-library",
-    assemble = "assemble",
-    preprocess_assemble = "preprocess-assemble",
-    ldc_compile = "ldc-compile",
-    clang_rt_compile = "clang-rt-compile",
-    clang_rt_link = "clang-rt-link",
-    d_symbundle = "d-symbundle",
+    cpp_module_compile = "c++-module-compile",
+    cpp_header_parsing = "c++-header-parsing",
 )
 
 def _impl(ctx):
-    tool_paths = [
-        tool_path(name = "gcc", path = ctx.attr.gcc_path),
-        tool_path(name = "g++", path = ctx.attr.gxx_path),
-        tool_path(name = "ld", path = ctx.attr.ld_path),
-        tool_path(name = "ar", path = ctx.attr.ar_path),
-        tool_path(name = "cpp", path = ctx.attr.cpp_path),
-        tool_path(name = "gcov", path = ctx.attr.gcov_path),
-        tool_path(name = "nm", path = ctx.attr.nm_path),
-        tool_path(name = "objdump", path = ctx.attr.objdump_path),
-        tool_path(name = "strip", path = ctx.attr.strip_path),
-    ]
-
-    cxx20_feature = feature(
-        name = "c++20",
-        enabled = True,
-        flag_sets = [
-            flag_set(
-                actions = [
-                    ACTION_NAMES.cpp_compile,
-                    ACTION_NAMES.cpp_module_compile,
-                    ACTION_NAMES.cpp_header_parsing,
-                ],
-                flag_groups = [
-                    flag_group(
-                        flags = ["-std=c++20"],
-                    ),
-                ],
-            ),
-        ],
-    )
-
-    supports_pic_feature = feature(
-        name = "supports_pic",
-        enabled = True,
-    )
-
-    supports_dynamic_linker_feature = feature(
-        name = "supports_dynamic_linker",
-        enabled = True,
-    )
-
-    default_link_flags_feature = feature(
-        name = "default_link_flags",
-        enabled = True,
-        flag_sets = [
-            flag_set(
-                actions = [
-                    ACTION_NAMES.cpp_link_executable,
-                    ACTION_NAMES.cpp_link_dynamic_library,
-                ],
-                flag_groups = [
-                    flag_group(
-                        flags = [
-                            "-lstdc++",
-                            "-lm",
-                            "-lpthread",
-                        ],
-                    ),
-                ],
-            ),
-        ],
-    )
-
-    # Feature for custom GLIBC path - embeds rpath and dynamic-linker into binaries
-    # This allows programs to run on systems with older glibc without manual loader invocation
-    # Programs will automatically use /opt/eros/lib/ld-linux-aarch64.so.1 as the dynamic linker
-    # IMPORTANT: This feature is disabled by default and should only be enabled for cross-compilation
-    # via --features=custom_glibc in the build:cross_arm64 configuration
-    custom_glibc_feature = feature(
-        name = "custom_glibc",
-        enabled = False,  # Disabled by default, only enable for cross-compilation
-        flag_sets = [
-            flag_set(
-                actions = [
-                    ACTION_NAMES.cpp_link_executable,
-                ],
-                flag_groups = [
-                    flag_group(
-                        flags = [
-                            "-Wl,--rpath=/opt/eros/lib",
-                            "-Wl,--dynamic-linker=/opt/eros/lib/ld-linux-aarch64.so.1",
-                        ],
-                    ),
-                ],
-            ),
-        ],
-    )
-
     features = [
-        cxx20_feature,
-        supports_pic_feature,
-        supports_dynamic_linker_feature,
-        default_link_flags_feature,
-        custom_glibc_feature,
+        feature(
+            name = "c++20",
+            enabled = True,
+            flag_sets = [
+                flag_set(
+                    actions = [
+                        ACTION_NAMES.cpp_compile,
+                        ACTION_NAMES.cpp_module_compile,
+                        ACTION_NAMES.cpp_header_parsing,
+                    ],
+                    flag_groups = [
+                        flag_group(flags = ["-std=c++20"]),
+                    ],
+                ),
+            ],
+        ),
+        feature(name = "supports_pic", enabled = True),
+        feature(name = "supports_dynamic_linker", enabled = True),
     ]
 
     return cc_common.create_cc_toolchain_config_info(
@@ -125,7 +38,17 @@ def _impl(ctx):
         action_configs = [],
         artifact_name_patterns = [],
         cxx_builtin_include_directories = ctx.attr.cxx_builtin_include_directories,
-        tool_paths = tool_paths,
+        tool_paths = [
+            tool_path(name = "gcc", path = ctx.attr.gcc_path),
+            tool_path(name = "g++", path = ctx.attr.gxx_path),
+            tool_path(name = "ld", path = ctx.attr.ld_path),
+            tool_path(name = "ar", path = ctx.attr.ar_path),
+            tool_path(name = "cpp", path = ctx.attr.cpp_path),
+            tool_path(name = "gcov", path = ctx.attr.gcov_path),
+            tool_path(name = "nm", path = ctx.attr.nm_path),
+            tool_path(name = "objdump", path = ctx.attr.objdump_path),
+            tool_path(name = "strip", path = ctx.attr.strip_path),
+        ],
         target_cpu = ctx.attr.cpu,
         target_system_name = ctx.attr.target_system_name,
         compiler = ctx.attr.compiler,
