@@ -14,60 +14,29 @@
 # For native builds, Bazel automatically detects the host platform and selects the
 # appropriate toolchain. Only use cross_arm64 when cross-compiling.
 
-# x86_64 native compilation (on x86_64 host)
-# Uses auto-detected host platform, just ensure toolchain selection
+# Cross-compilation configurations (Bazel 9.0+)
 build:x86_64 --platforms=@eros_forge//bazel/toolchain:linux_x86_64
-build:x86_64 --crosstool_top=@eros_forge//bazel/toolchain:toolchain
-build:x86_64 --cpu=x86_64
-build:x86_64 --compiler=gcc
-
-# ARM64 native compilation (on ARM64 host)
-# Uses auto-detected host platform, just ensure toolchain selection
 build:arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64
-build:arm64 --crosstool_top=@eros_forge//bazel/toolchain:toolchain
-build:arm64 --cpu=aarch64
-build:arm64 --compiler=gcc
-
-# Cross-compilation: x86_64 host -> ARM64 target
-# This configuration embeds /opt/eros/lib as the custom glibc path
-# Programs will automatically use /opt/eros/lib/ld-linux-aarch64.so.1 as the dynamic linker
-# This allows running on target systems with older glibc without manual loader invocation
 build:cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_cross
-build:cross_arm64 --crosstool_top=@eros_forge//bazel/toolchain:toolchain
-build:cross_arm64 --cpu=aarch64
-build:cross_arm64 --compiler=gcc
 build:cross_arm64 --linkopt=-Wl,--rpath=/opt/eros/lib
 build:cross_arm64 --linkopt=-Wl,--dynamic-linker=/opt/eros/lib/ld-linux-aarch64.so.1
-
-# Enable CC toolchain resolution
-build --incompatible_enable_cc_toolchain_resolution
 
 # Allow DEB_VERSION environment variable to be passed to actions
 build --action_env=DEB_VERSION
 
-# =============================================================================
-# Default Build Settings
-# =============================================================================
-
-# C++ Standard
+# Default build settings
 build --cxxopt=-std=c++20
 build --host_cxxopt=-std=c++20
 
-# =============================================================================
-# Release Build Settings
-# =============================================================================
+# Release build
 build:release --compilation_mode=opt
-build:release --copt=-O2
+build:release --copt=-O3
 build:release --copt=-DNDEBUG
 
-# =============================================================================
-# Debug Build Settings
-# =============================================================================
+# Debug build
 build:debug --compilation_mode=dbg
 build:debug --copt=-g
 
-# =============================================================================
-# Test Settings
-# =============================================================================
+# Test settings
 test --test_output=errors
 test --test_verbose_timeout_warnings
