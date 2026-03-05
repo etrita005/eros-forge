@@ -1,11 +1,5 @@
-# EROS Unified Bazel Configuration File
-# This file contains common Bazel configurations for all EROS projects
-# Projects can import this configuration via the import statement
-#
-# Usage: Add the following to your project's .bazelrc file:
-#   try-import %workspace%/../../forge/bazel/bazelrc
-#
-# Or set the BAZELRC environment variable to point to this file
+# EROS Unified Bazel Configuration
+# Import this file in project .bazelrc: try-import %workspace%/../../forge/bazel/bazelrc
 
 # =============================================================================
 # Cross-compilation Configuration
@@ -42,7 +36,8 @@ build:cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_cross
 build:cross_arm64 --crosstool_top=@eros_forge//bazel/toolchain:toolchain
 build:cross_arm64 --cpu=aarch64
 build:cross_arm64 --compiler=gcc
-build:cross_arm64 --features=custom_glibc
+build:cross_arm64 --linkopt=-Wl,--rpath=/opt/eros/lib
+build:cross_arm64 --linkopt=-Wl,--dynamic-linker=/opt/eros/lib/ld-linux-aarch64.so.1
 
 # Enable CC toolchain resolution
 build --incompatible_enable_cc_toolchain_resolution
