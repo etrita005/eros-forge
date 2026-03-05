@@ -277,7 +277,7 @@ ld-linux-aarch64.so.1  # 动态链接器（必需）
 
 ```bash
 # C++ 运行时库
-libstdc++.so.6         # C++ 标准库
+libstdc++.so.6         # C++ 标准库（需要较新版本，支持 GLIBCXX_3.4.30+）
 libgcc_s.so.1          # GCC 运行时库
 ```
 
@@ -288,15 +288,19 @@ libgcc_s.so.1          # GCC 运行时库
 ssh user@target-board "sudo mkdir -p /opt/eros/lib"
 
 # 从宿主机复制库文件到目标机
+# 注意：libstdc++ 需要较新版本以支持 C++20 特性
 scp /usr/aarch64-linux-gnu/lib/ld-linux-aarch64.so.1 \
     /usr/aarch64-linux-gnu/lib/libc.so.6 \
     /usr/aarch64-linux-gnu/lib/libm.so.6 \
     /usr/aarch64-linux-gnu/lib/libpthread.so.0 \
     /usr/aarch64-linux-gnu/lib/libdl.so.2 \
     /usr/aarch64-linux-gnu/lib/librt.so.1 \
-    /usr/lib/aarch64-linux-gnu/libstdc++.so.6 \
+    /usr/lib/aarch64-linux-gnu/libstdc++.so.6.0.33 \
     /usr/lib/aarch64-linux-gnu/libgcc_s.so.1 \
     user@target-board:/opt/eros/lib/
+
+# 在目标机上创建 libstdc++.so.6 符号链接
+ssh user@target-board "cd /opt/eros/lib && ln -sf libstdc++.so.6.0.33 libstdc++.so.6"
 
 # 设置正确的权限
 ssh user@target-board "chmod 755 /opt/eros/lib/*.so*"
@@ -305,7 +309,10 @@ ssh user@target-board "chmod 755 /opt/eros/lib/*.so*"
 **注意**：
 - 库文件路径可能因发行版而异，请根据实际情况调整
 - 确保复制的库版本与目标机兼容
+- **libstdc++ 版本要求**：如果程序使用 C++20 特性，需要 libstdc++.so.6.0.30 或更高版本
+- 可以使用 `strings /usr/lib/aarch64-linux-gnu/libstdc++.so.6 | grep GLIBCXX` 查看支持的版本
 - 如果目标机已有兼容版本的库，可以跳过相应步骤
+- **静态链接优势**：使用 `linkstatic = True` 编译的程序，Boost 等第三方库已静态链接，无需额外复制
 
 ### 2. 传输程序到目标机
 
