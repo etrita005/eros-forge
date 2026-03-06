@@ -1,16 +1,10 @@
 load(":cc_toolchain_config.bzl", "cc_toolchain_config")
 load("@rules_cc//cc:defs.bzl", "cc_toolchain", "cc_toolchain_suite")
 
-platform(
-    name = "linux_arm64",
-    constraint_values = [
-        "@platforms//os:linux",
-        "@platforms//cpu:arm64",
-    ],
-)
+package(default_visibility = ["//visibility:public"])
 
 platform(
-    name = "linux_x86_64",
+    name = "linux_x86_64_platform",
     constraint_values = [
         "@platforms//os:linux",
         "@platforms//cpu:x86_64",
@@ -18,45 +12,40 @@ platform(
 )
 
 platform(
-    name = "linux_arm64_cross",
+    name = "linux_arm64_platform",
     constraint_values = [
         "@platforms//os:linux",
         "@platforms//cpu:arm64",
     ],
-    exec_properties = {
-        "cross_compile": "true",
-    },
 )
 
 cc_toolchain_config(
-    name = "linux_arm64_cross_config",
-    cpu = "aarch64",
+    name = "linux_x86_64_config",
+    cpu = "x86_64",
     compiler = "gcc",
-    target_system_name = "aarch64-linux-gnu",
-    target_libc = "glibc_2.27",
-    abi_version = "aarch64",
-    abi_libc_version = "2.27",
-    toolchain_identifier = "aarch64-linux-gnu-cross-toolchain",
+    target_system_name = "x86_64-linux-gnu",
+    target_libc = "glibc_native",
+    abi_version = "x86_64",
+    abi_libc_version = "native",
+    toolchain_identifier = "x86_64-linux-gnu-native-toolchain",
     host_system_name = "x86_64-linux-gnu",
-    gcc_path = "/usr/bin/aarch64-linux-gnu-gcc",
-    gxx_path = "/usr/bin/aarch64-linux-gnu-g++",
-    ld_path = "/usr/bin/aarch64-linux-gnu-ld",
-    ar_path = "/usr/bin/aarch64-linux-gnu-ar",
-    cpp_path = "/usr/bin/aarch64-linux-gnu-cpp",
-    gcov_path = "/usr/bin/aarch64-linux-gnu-gcov",
-    nm_path = "/usr/bin/aarch64-linux-gnu-nm",
-    objdump_path = "/usr/bin/aarch64-linux-gnu-objdump",
-    strip_path = "/usr/bin/aarch64-linux-gnu-strip",
+    gcc_path = "/usr/bin/gcc",
+    gxx_path = "/usr/bin/g++",
+    ld_path = "/usr/bin/ld",
+    ar_path = "/usr/bin/ar",
+    cpp_path = "/usr/bin/cpp",
+    gcov_path = "/usr/bin/gcov",
+    nm_path = "/usr/bin/nm",
+    objdump_path = "/usr/bin/objdump",
+    strip_path = "/usr/bin/strip",
+    objcopy_path = "/usr/bin/objcopy",
     cxx_builtin_include_directories = [
         "/usr/include/c++/13",
-        "/usr/include/aarch64-linux-gnu/c++/13",
+        "/usr/include/x86_64-linux-gnu/c++/13",
         "/usr/include/c++/13/backward",
-        "/usr/lib/gcc-cross/aarch64-linux-gnu/13/include",
-        "/usr/lib/gcc-cross/aarch64-linux-gnu/13/include-fixed",
-        "/usr/lib/gcc/aarch64-linux-gnu/13/include",
-        "/usr/lib/gcc/aarch64-linux-gnu/13/include-fixed",
-        "/usr/aarch64-linux-gnu/include",
-        "/usr/include/aarch64-linux-gnu",
+        "/usr/lib/gcc/x86_64-linux-gnu/13/include",
+        "/usr/lib/gcc/x86_64-linux-gnu/13/include-fixed",
+        "/usr/include/x86_64-linux-gnu",
         "/usr/include",
     ],
 )
@@ -80,6 +69,7 @@ cc_toolchain_config(
     nm_path = "/usr/bin/nm",
     objdump_path = "/usr/bin/objdump",
     strip_path = "/usr/bin/strip",
+    objcopy_path = "/usr/bin/objcopy",
     cxx_builtin_include_directories = [
         "/usr/include/c++/13",
         "/usr/include/aarch64-linux-gnu/c++/13",
@@ -93,99 +83,170 @@ cc_toolchain_config(
 )
 
 cc_toolchain_config(
-    name = "linux_x86_64_config",
-    cpu = "x86_64",
+    name = "linux_arm64_cross_from_x86_64_config",
+    cpu = "aarch64",
     compiler = "gcc",
-    target_system_name = "x86_64-linux-gnu",
-    target_libc = "glibc_native",
-    abi_version = "x86_64",
-    abi_libc_version = "native",
-    toolchain_identifier = "x86_64-linux-gnu-toolchain",
+    target_system_name = "aarch64-linux-gnu",
+    target_libc = "glibc_cross",
+    abi_version = "aarch64",
+    abi_libc_version = "cross",
+    toolchain_identifier = "aarch64-linux-gnu-cross-x86_64-toolchain",
     host_system_name = "x86_64-linux-gnu",
-    gcc_path = "/usr/bin/gcc",
-    gxx_path = "/usr/bin/g++",
-    ld_path = "/usr/bin/ld",
-    ar_path = "/usr/bin/ar",
-    cpp_path = "/usr/bin/cpp",
-    gcov_path = "/usr/bin/gcov",
-    nm_path = "/usr/bin/nm",
-    objdump_path = "/usr/bin/objdump",
-    strip_path = "/usr/bin/strip",
+    gcc_path = "/usr/bin/aarch64-linux-gnu-gcc",
+    gxx_path = "/usr/bin/aarch64-linux-gnu-g++",
+    ld_path = "/usr/bin/aarch64-linux-gnu-ld",
+    ar_path = "/usr/bin/aarch64-linux-gnu-ar",
+    cpp_path = "/usr/bin/aarch64-linux-gnu-cpp",
+    gcov_path = "/usr/bin/aarch64-linux-gnu-gcov",
+    nm_path = "/usr/bin/aarch64-linux-gnu-nm",
+    objdump_path = "/usr/bin/aarch64-linux-gnu-objdump",
+    strip_path = "/usr/bin/aarch64-linux-gnu-strip",
+    objcopy_path = "/usr/bin/aarch64-linux-gnu-objcopy",
+    extra_link_flags = [
+        "-L/usr/lib/gcc/aarch64-linux-gnu/13",
+        "-L/usr/aarch64-linux-gnu/lib",
+        "-L/usr/lib/aarch64-linux-gnu",
+        "-lstdc++",
+        "-lgcc",
+        "-lm",
+        "-Wl,--rpath=/opt/eros/lib",
+        "-Wl,--dynamic-linker=/opt/eros/lib/ld-linux-aarch64.so.1",
+    ],
     cxx_builtin_include_directories = [
         "/usr/include/c++/13",
-        "/usr/include/x86_64-linux-gnu/c++/13",
+        "/usr/include/aarch64-linux-gnu/c++/13",
         "/usr/include/c++/13/backward",
-        "/usr/lib/gcc/x86_64-linux-gnu/13/include",
-        "/usr/lib/gcc/x86_64-linux-gnu/13/include-fixed",
-        "/usr/include/x86_64-linux-gnu",
+        "/usr/lib/gcc/aarch64-linux-gnu/13/include",
+        "/usr/lib/gcc/aarch64-linux-gnu/13/include-fixed",
+        "/usr/aarch64-linux-gnu/include",
+        "/usr/include/aarch64-linux-gnu",
         "/usr/include",
     ],
 )
 
+cc_toolchain_config(
+    name = "linux_arm64_cross_from_arm64_config",
+    cpu = "aarch64",
+    compiler = "gcc",
+    target_system_name = "aarch64-linux-gnu",
+    target_libc = "glibc_cross",
+    abi_version = "aarch64",
+    abi_libc_version = "cross",
+    toolchain_identifier = "aarch64-linux-gnu-cross-arm64-toolchain",
+    host_system_name = "aarch64-linux-gnu",
+    gcc_path = "/usr/bin/aarch64-linux-gnu-gcc",
+    gxx_path = "/usr/bin/aarch64-linux-gnu-g++",
+    ld_path = "/usr/bin/aarch64-linux-gnu-ld",
+    ar_path = "/usr/bin/aarch64-linux-gnu-ar",
+    cpp_path = "/usr/bin/aarch64-linux-gnu-cpp",
+    gcov_path = "/usr/bin/aarch64-linux-gnu-gcov",
+    nm_path = "/usr/bin/aarch64-linux-gnu-nm",
+    objdump_path = "/usr/bin/aarch64-linux-gnu-objdump",
+    strip_path = "/usr/bin/aarch64-linux-gnu-strip",
+    objcopy_path = "/usr/bin/aarch64-linux-gnu-objcopy",
+    extra_link_flags = [
+        "-L/usr/lib/gcc/aarch64-linux-gnu/13",
+        "-L/usr/aarch64-linux-gnu/lib",
+        "-L/usr/lib/aarch64-linux-gnu",
+        "-lstdc++",
+        "-lgcc",
+        "-lm",
+        "-Wl,--rpath=/opt/eros/lib",
+        "-Wl,--dynamic-linker=/opt/eros/lib/ld-linux-aarch64.so.1",
+    ],
+    cxx_builtin_include_directories = [
+        "/usr/include/c++/13",
+        "/usr/include/aarch64-linux-gnu/c++/13",
+        "/usr/include/c++/13/backward",
+        "/usr/lib/gcc/aarch64-linux-gnu/13/include",
+        "/usr/lib/gcc/aarch64-linux-gnu/13/include-fixed",
+        "/usr/aarch64-linux-gnu/include",
+        "/usr/include/aarch64-linux-gnu",
+        "/usr/include",
+    ],
+)
+
+filegroup(name = "empty")
+
+filegroup(
+    name = "all_tools",
+    srcs = [":empty"],
+)
+
 cc_toolchain(
-    name = "cc-toolchain-arm64-cross",
-    toolchain_config = ":linux_arm64_cross_config",
-    all_files = ":empty",
-    compiler_files = ":empty",
+    name = "cc-toolchain-x86_64",
+    toolchain_config = ":linux_x86_64_config",
+    all_files = ":all_tools",
+    compiler_files = ":all_tools",
     dwp_files = ":empty",
-    linker_files = ":empty",
-    objcopy_files = ":empty",
-    strip_files = ":empty",
+    linker_files = ":all_tools",
+    objcopy_files = ":all_tools",
+    strip_files = ":all_tools",
     supports_param_files = 1,
 )
 
 cc_toolchain(
     name = "cc-toolchain-arm64-native",
     toolchain_config = ":linux_arm64_native_config",
-    all_files = ":empty",
-    compiler_files = ":empty",
+    all_files = ":all_tools",
+    compiler_files = ":all_tools",
     dwp_files = ":empty",
-    linker_files = ":empty",
-    objcopy_files = ":empty",
-    strip_files = ":empty",
+    linker_files = ":all_tools",
+    objcopy_files = ":all_tools",
+    strip_files = ":all_tools",
     supports_param_files = 1,
 )
 
 cc_toolchain(
-    name = "cc-toolchain-x86_64",
-    toolchain_config = ":linux_x86_64_config",
-    all_files = ":empty",
-    compiler_files = ":empty",
+    name = "cc-toolchain-arm64-cross-from-x86_64",
+    toolchain_config = ":linux_arm64_cross_from_x86_64_config",
+    all_files = ":all_tools",
+    compiler_files = ":all_tools",
     dwp_files = ":empty",
-    linker_files = ":empty",
-    objcopy_files = ":empty",
-    strip_files = ":empty",
+    linker_files = ":all_tools",
+    objcopy_files = ":all_tools",
+    strip_files = ":all_tools",
+    supports_param_files = 1,
+)
+
+cc_toolchain(
+    name = "cc-toolchain-arm64-cross-from-arm64",
+    toolchain_config = ":linux_arm64_cross_from_arm64_config",
+    all_files = ":all_tools",
+    compiler_files = ":all_tools",
+    dwp_files = ":empty",
+    linker_files = ":all_tools",
+    objcopy_files = ":all_tools",
+    strip_files = ":all_tools",
     supports_param_files = 1,
 )
 
 cc_toolchain_suite(
     name = "toolchain",
     toolchains = {
-        "aarch64|gcc": ":cc-toolchain-arm64-cross",
-        "aarch64": ":cc-toolchain-arm64-cross",
         "x86_64|gcc": ":cc-toolchain-x86_64",
         "x86_64": ":cc-toolchain-x86_64",
+        "aarch64|gcc": ":cc-toolchain-arm64-native",
+        "aarch64": ":cc-toolchain-arm64-native",
     },
 )
 
-filegroup(name = "empty")
-
 toolchain(
-    name = "cc-toolchain-arm64-linux-cross",
+    name = "cc-toolchain-linux-x86_64",
     exec_compatible_with = [
         "@platforms//os:linux",
         "@platforms//cpu:x86_64",
     ],
     target_compatible_with = [
         "@platforms//os:linux",
-        "@platforms//cpu:arm64",
+        "@platforms//cpu:x86_64",
     ],
-    toolchain = ":cc-toolchain-arm64-cross",
+    toolchain = ":cc-toolchain-x86_64",
     toolchain_type = "@rules_cc//cc:toolchain_type",
 )
 
 toolchain(
-    name = "cc-toolchain-arm64-linux-native",
+    name = "cc-toolchain-linux-arm64",
     exec_compatible_with = [
         "@platforms//os:linux",
         "@platforms//cpu:arm64",
@@ -199,15 +260,29 @@ toolchain(
 )
 
 toolchain(
-    name = "cc-toolchain-x86_64-linux",
+    name = "cc-toolchain-x86_64-to-arm64",
     exec_compatible_with = [
         "@platforms//os:linux",
         "@platforms//cpu:x86_64",
     ],
     target_compatible_with = [
         "@platforms//os:linux",
-        "@platforms//cpu:x86_64",
+        "@platforms//cpu:arm64",
     ],
-    toolchain = ":cc-toolchain-x86_64",
+    toolchain = ":cc-toolchain-arm64-cross-from-x86_64",
+    toolchain_type = "@rules_cc//cc:toolchain_type",
+)
+
+toolchain(
+    name = "cc-toolchain-arm64-to-arm64",
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:arm64",
+    ],
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:arm64",
+    ],
+    toolchain = ":cc-toolchain-arm64-cross-from-arm64",
     toolchain_type = "@rules_cc//cc:toolchain_type",
 )

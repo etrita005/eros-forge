@@ -10,6 +10,7 @@ Forge 是 EROS 项目的统一构建系统，基于 Bazel 9.0，提供跨平台�
 - [交叉编译](#交叉编译)
 - [部署与运行](#部署与运行)
 - [工具链配置](#工具链配置)
+- [Sanitizer 支持](#sanitizer-支持)
 
 ## 快速开始
 
@@ -37,14 +38,14 @@ try-import %workspace%/../../forge/bazel/bazelrc
 ### 基本构建命令
 
 ```bash
-# 编译项目
+# 原生编译（自动检测宿主机架构）
 bazel build //:all
 
-# 使用 release 配置编译（优化级别 -O3）
+# 使用 release 配置编译（优化级别 -O3，符号分离）
 bazel build //:all --config=release
 
 # 交叉编译到 ARM64
-bazel build //:all --config=cross_arm64
+bazel build //:all --config=linux_x86_64_cross_arm64
 ```
 
 ## 环境初始化
@@ -165,58 +166,68 @@ aarch64-linux-gnu-g++ --version
 
 Forge 提供以下构建配置：
 
-| 配置 | 说明 | 使用场景 |
-|------|------|----------|
-| `--config=x86_64` | x86_64 原生编译 | 在 x86_64 主机上编译 x86_64 程序 |
-| `--config=arm64` | ARM64 原生编译 | 在 ARM64 主机上编译 ARM64 程序 |
-| `--config=cross_arm64` | 交叉编译到 ARM64 | 在 x86_64 主机上编译 ARM64 程序 |
+| 配置 | 说明 | 宿主机 | 目标机 |
+|------|------|--------|--------|
+| `--config=linux_x86_64` | x86_64 原生编译 | x86_64 | x86_64 |
+| `--config=linux_arm64` | ARM64 原生编译 | arm64 | arm64 |
+| `--config=linux_x86_64_cross_arm64` | 交叉编译 | x86_64 | arm64 |
+| `--config=linux_arm64_cross_arm64` | 交叉编译（自定义 glibc） | arm64 | arm64 |
 
 ### 构建模式
 
 | 模式 | 说明 | 优化级别 |
 |------|------|----------|
 | `--config=debug` | 调试模式 | 无优化，包含调试信息 |
-| `--config=release` | 发布模式 | `-O3` 优化，禁用断言 |
+| `--config=release` | 发布模式 | `-O3` 优化，符号分离 |
 
 ### 组合使用示例
 
 ```bash
 # 在 x86_64 主机上交叉编译 ARM64 release 版本
-bazel build //:my_app --config=cross_arm64 --config=release
+bazel build //:my_app --config=linux_x86_64_cross_arm64 --config=release
 
 # 在 x86_64 主机上编译本地 debug 版本
-bazel build //:my_app --config=x86_64 --config=debug
+bazel build //:my_app --config=linux_x86_64 --config=debug
 
 # 在 ARM64 主机上编译本地 release 版本
-bazel build //:my_app --config=arm64 --config=release
+bazel build //:my_app --config=linux_arm64 --config=release
+
+# 在 ARM64 主机上交叉编译（使用自定义 glibc）
+bazel build //:my_app --config=linux_arm64_cross_arm64 --config=release
 ```
 
 ## 交叉编译
 
 ### 交叉编译 ARM64
 
-使用 `--config=cross_arm64` 配置进行交叉编译：
+使用 `--config=linux_x86_64_cross_arm64` 或 `--config=linux_arm64_cross_arm64` 配置进行交叉编译：
 
 ```bash
-# 编译项目
-bazel build //:all --config=cross_arm64
+# 从 x86_64 主机交叉编译到 ARM64
+bazel build //:all --config=linux_x86_64_cross_arm64
+
+# 从 ARM64 主机交叉编译到 ARM64（使用自定义 glibc）
+bazel build //:all --config=linux_arm64_cross_arm64
 
 # 编译特定目标
-bazel build //src:my_app --config=cross_arm64
+bazel build //src:my_app --config=linux_x86_64_cross_arm64
 ```
 
 ### 自动嵌入动态链接器和库搜索路径
 
-`--config=cross_arm64` 配置会自动配置以下链接参数：
+交叉编译配置会自动配置以下链接参数（已内置到工具链）：
 
 1. **动态链接器**：`/opt/eros/lib/ld-linux-aarch64.so.1`
    - 指定程序运行时使用的动态链接器路径
-   - 通过 `--linkopt=-Wl,--dynamic-linker=/opt/eros/lib/ld-linux-aarch64.so.1` 设置
 
 2. **运行时库搜索路径（RUNPATH）**：`/opt/eros/lib`
    - 指定程序运行时搜索共享库的路径
-   - 通过 `--linkopt=-Wl,--rpath=/opt/eros/lib` 设置
    - 程序会自动在此路径下查找依赖的 `.so` 文件
+
+3. **必需的系统库**：
+   - `-lstdc++`：C++ 标准库
+   - `-lgcc`：GCC 运行时库
+   - `-lm`：数学库
 
 这意味着：
 - 编译的程序会自动使用指定的动态链接器
@@ -281,6 +292,17 @@ libstdc++.so.6         # C++ 标准库（需要较新版本，支持 GLIBCXX_3.4
 libgcc_s.so.1          # GCC 运行时库
 ```
 
+#### Sanitizer 运行时库（用于测试和调试）
+
+如果程序使用 Sanitizer（ASan、UBSan、TSan），需要复制相应的动态库：
+
+```bash
+# Sanitizer 库
+libasan.so.4           # AddressSanitizer
+libubsan.so.0          # UndefinedBehaviorSanitizer
+libtsan.so.0           # ThreadSanitizer
+```
+
 #### 复制示例
 
 ```bash
@@ -297,6 +319,12 @@ scp /usr/aarch64-linux-gnu/lib/ld-linux-aarch64.so.1 \
     /usr/aarch64-linux-gnu/lib/librt.so.1 \
     /usr/lib/aarch64-linux-gnu/libstdc++.so.6.0.33 \
     /usr/lib/aarch64-linux-gnu/libgcc_s.so.1 \
+    user@target-board:/opt/eros/lib/
+
+# 复制 Sanitizer 库（用于测试和调试）
+scp /usr/lib/aarch64-linux-gnu/libasan.so* \
+    /usr/lib/aarch64-linux-gnu/libubsan.so* \
+    /usr/lib/aarch64-linux-gnu/libtsan.so* \
     user@target-board:/opt/eros/lib/
 
 # 在目标机上创建 libstdc++.so.6 符号链接
@@ -338,9 +366,14 @@ chmod +x my_app
 
 # 运行程序
 ./my_app
+
+# 如果程序使用 Sanitizer，需要设置 LD_LIBRARY_PATH
+LD_LIBRARY_PATH=/opt/eros/lib:$LD_LIBRARY_PATH ./my_app
 ```
 
-**注意**：由于程序已经嵌入了动态链接器和库搜索路径，无需额外配置即可运行。
+**注意**：
+- 由于程序已经嵌入了动态链接器和库搜索路径，无需额外配置即可运行
+- 使用 Sanitizer 的程序需要设置 `LD_LIBRARY_PATH=/opt/eros/lib` 以找到 sanitizer 动态库
 
 ### 4. 验证程序信息
 
@@ -390,11 +423,10 @@ bazel/toolchain/
 
 #### 1. 平台定义（BUILD.bazel）
 
-定义三个平台：
+定义两个平台：
 
-- `linux_x86_64`：x86_64 原生平台
-- `linux_arm64`：ARM64 原生平台
-- `linux_arm64_cross`：ARM64 交叉编译平台
+- `linux_x86_64_platform`：x86_64 原生平台
+- `linux_arm64_platform`：ARM64 原生/交叉编译平台
 
 #### 2. 工具链配置（cc_toolchain_config.bzl）
 
@@ -406,25 +438,49 @@ bazel/toolchain/
   - `c++20`：启用 C++20 标准
   - `supports_pic`：支持位置无关代码
   - `supports_dynamic_linker`：支持动态链接器配置
+  - `separate_debug_info`：支持符号分离
+  - `static_link_cpp_runtimes`：支持静态链接 C++ 运行时
 
-#### 3. Bazel 配置（bazelrc）
+#### 3. 交叉编译链接选项（已内置到工具链）
+
+```python
+extra_link_flags = [
+    # 库搜索路径
+    "-L/usr/lib/gcc/aarch64-linux-gnu/13",
+    "-L/usr/aarch64-linux-gnu/lib",
+    "-L/usr/lib/aarch64-linux-gnu",
+    # 必需的系统库
+    "-lstdc++",
+    "-lgcc",
+    "-lm",
+    # 目标机运行时配置
+    "-Wl,--rpath=/opt/eros/lib",
+    "-Wl,--dynamic-linker=/opt/eros/lib/ld-linux-aarch64.so.1",
+]
+```
+
+#### 4. Bazel 配置（bazelrc）
 
 定义构建配置：
 
 ```bazel
 # 平台配置
-build:x86_64 --platforms=@eros_forge//bazel/toolchain:linux_x86_64
-build:arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64
-build:cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_cross
+build:linux_x86_64 --platforms=@eros_forge//bazel/toolchain:linux_x86_64_platform
+build:linux_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_platform
 
-# 交叉编译链接参数
-build:cross_arm64 --linkopt=-Wl,--rpath=/opt/eros/lib
-build:cross_arm64 --linkopt=-Wl,--dynamic-linker=/opt/eros/lib/ld-linux-aarch64.so.1
+# 交叉编译配置
+build:linux_x86_64_cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_platform
+build:linux_x86_64_cross_arm64 --extra_toolchains=@eros_forge//bazel/toolchain:cc-toolchain-x86_64-to-arm64
+
+build:linux_arm64_cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_platform
+build:linux_arm64_cross_arm64 --extra_toolchains=@eros_forge//bazel/toolchain:cc-toolchain-arm64-to-arm64
 
 # 发布版本配置
 build:release --compilation_mode=opt
 build:release --copt=-O3
 build:release --copt=-DNDEBUG
+build:release --copt=-g
+build:release --features=separate_debug_info
 ```
 
 ### 自定义工具链
@@ -444,6 +500,15 @@ cc_toolchain_config(
     host_system_name = "x86_64-linux-gnu",
     gcc_path = "/usr/bin/riscv64-linux-gnu-gcc",
     gxx_path = "/usr/bin/riscv64-linux-gnu-g++",
+    extra_link_flags = [
+        "-L/usr/lib/gcc/riscv64-linux-gnu/13",
+        "-L/usr/riscv64-linux-gnu/lib",
+        "-lstdc++",
+        "-lgcc",
+        "-lm",
+        "-Wl,--rpath=/opt/eros/lib",
+        "-Wl,--dynamic-linker=/opt/eros/lib/ld-linux-riscv64-lp64d.so.1",
+    ],
     # ... 其他配置
 )
 
@@ -471,9 +536,83 @@ toolchain(
 然后在 `bazelrc` 中添加配置：
 
 ```bazel
-build:cross_riscv64 --platforms=@eros_forge//bazel/toolchain:linux_riscv64_cross
-build:cross_riscv64 --linkopt=-Wl,--rpath=/opt/eros/lib
-build:cross_riscv64 --linkopt=-Wl,--dynamic-linker=/opt/eros/lib/ld-linux-riscv64-lp64d.so.1
+build:linux_x86_64_cross_riscv64 --platforms=@eros_forge//bazel/toolchain:linux_riscv64_platform
+build:linux_x86_64_cross_riscv64 --extra_toolchains=@eros_forge//bazel/toolchain:cc-toolchain-x86_64-to-riscv64
+```
+
+## Sanitizer 支持
+
+Forge 工具链内置了以下 Sanitizer 支持，用于检测内存错误和数据竞争。
+
+### 默认行为
+
+**测试模式**：`bazel test` 默认启用 **ASan + UBSan**
+
+**Debug 模式**：`--config=debug` 默认启用 **ASan + UBSan**
+
+这意味着：
+- 运行测试时自动检测内存错误和未定义行为
+- Debug 构建时自动启用 Sanitizer，无需额外参数
+
+### 可用的 Sanitizer 配置
+
+| 配置 | Sanitizer | 检测内容 |
+|------|-----------|----------|
+| 默认 | ASan + UBSan | 内存错误 + 未定义行为 |
+| `--config=tsan_test` | ThreadSanitizer | 数据竞争、死锁（测试专用） |
+| `--config=tsan` | ThreadSanitizer | 数据竞争、死锁（构建专用） |
+| `--config=msan` | MemorySanitizer | 未初始化内存读取 |
+| `--config=no_sanitizer` | 无 | 禁用默认 Sanitizer |
+
+### 使用示例
+
+```bash
+# 测试默认启用 ASan + UBSan
+bazel test //:tests --config=linux_arm64
+
+# Debug 构建默认启用 ASan + UBSan
+bazel build //:my_app --config=linux_arm64 --config=debug
+
+# 并发测试使用 ThreadSanitizer（替代默认的 ASan+UBSan）
+bazel test //:tests --config=linux_arm64 --config=tsan_test
+
+# 性能测试时禁用 Sanitizer
+bazel build //:my_app --config=linux_arm64 --config=no_sanitizer
+```
+
+### 注意事项
+
+1. **ASan 和 TSan 互斥**：不能同时使用
+2. **MSan 要求**：所有代码（包括依赖库）都必须使用 MSan 编译
+3. **性能影响**：Sanitizer 会显著降低程序性能（通常 2-10 倍）
+4. **内存开销**：ASan 会增加 2-3 倍内存使用
+5. **推荐场景**：
+   - 开发阶段：使用默认的 ASan + UBSan
+   - 并发测试：使用 `--config=tsan_test`
+   - 性能测试：使用 `--config=no_sanitizer`
+
+### Sanitizer 输出示例
+
+**AddressSanitizer 检测到的内存错误：**
+
+```
+==12345==ERROR: AddressSanitizer: heap-buffer-overflow
+READ of size 4 at 0x6020000001f0 thread T0
+    #0 0x401234 in foo() /path/to/file.cpp:10:5
+    #1 0x401567 in main /path/to/main.cpp:20:5
+```
+
+**ThreadSanitizer 检测到的数据竞争：**
+
+```
+==================
+WARNING: ThreadSanitizer: data race (pid=12345)
+  Read of size 4 at 0x7b0400000000 by thread T1:
+    #0 foo() /path/to/file.cpp:10:5
+
+  Previous write of size 4 at 0x7b0400000000 by thread T0:
+    #0 bar() /path/to/file.cpp:20:5
+==================
 ```
 
 ## 常见问题
@@ -484,7 +623,7 @@ A: 目标机可能使用较旧版本的 glibc。使用自定义 glibc 可以确�
 
 ### Q: 如何在不使用自定义 glibc 的情况下交叉编译？
 
-A: 如果目标机的 glibc 版本与宿主机兼容，可以修改 `bazelrc` 中的 `--linkopt` 参数，使用系统默认的 glibc 路径。
+A: 如果目标机的 glibc 版本与宿主机兼容，可以使用原生编译配置 `--config=linux_arm64`，无需交叉编译。
 
 ### Q: 编译失败，提示找不到头文件？
 
@@ -493,6 +632,10 @@ A: 检查是否正确安装了交叉编译工具链，以及工具链配置中�
 ### Q: 程序在目标机上运行时报错 "No such file or directory"？
 
 A: 这通常是因为动态链接器路径不正确。使用 `readelf -l` 检查程序的 INTERP 段，确保动态链接器路径正确。
+
+### Q: Release 模式下的符号分离是什么？
+
+A: Release 模式启用了 `separate_debug_info` 特性，会在编译时生成独立的调试符号文件，减小发布二进制的体积，同时保留调试能力。
 
 ## 参考资源
 

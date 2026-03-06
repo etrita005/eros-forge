@@ -2,41 +2,127 @@
 # Import this file in project .bazelrc: try-import %workspace%/../../forge/bazel/bazelrc
 
 # =============================================================================
-# Cross-compilation Configuration
+# Build Configurations
 # =============================================================================
 #
-# Build configurations:
-# - build:x86_64      : x86_64 native compilation (on x86_64 host)
-# - build:arm64       : ARM64 native compilation (on ARM64 host)
-# - build:cross_arm64 : Cross-compilation from x86_64 to ARM64 (uses custom glibc)
+# Supported configurations:
+# - build:linux_x86_64              : Native x86_64 compilation (host=x86_64, target=x86_64)
+# - build:linux_arm64               : Native ARM64 compilation (host=arm64, target=arm64)
+# - build:linux_x86_64_cross_arm64  : Cross-compilation (host=x86_64, target=arm64)
+# - build:linux_arm64_cross_arm64   : Cross-compilation (host=arm64, target=arm64)
 #
-# IMPORTANT: Do not assume host architecture. Use the appropriate config for your target.
-# For native builds, Bazel automatically detects the host platform and selects the
-# appropriate toolchain. Only use cross_arm64 when cross-compiling.
+# Usage examples:
+#   bazel build //... --config=linux_x86_64
+#   bazel build //... --config=linux_arm64
+#   bazel build //... --config=linux_x86_64_cross_arm64
+#   bazel build //... --config=linux_arm64_cross_arm64
 
-# Cross-compilation configurations (Bazel 9.0+)
-build:x86_64 --platforms=@eros_forge//bazel/toolchain:linux_x86_64
-build:arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64
-build:cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_cross
-build:cross_arm64 --linkopt=-Wl,--rpath=/opt/eros/lib
-build:cross_arm64 --linkopt=-Wl,--dynamic-linker=/opt/eros/lib/ld-linux-aarch64.so.1
+# =============================================================================
+# Platform Configurations
+# =============================================================================
 
-# Allow DEB_VERSION environment variable to be passed to actions
+# linux_x86_64: Native x86_64 compilation
+build:linux_x86_64 --platforms=@eros_forge//bazel/toolchain:linux_x86_64_platform
+
+# linux_arm64: Native ARM64 compilation
+build:linux_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_platform
+
+# linux_x86_64_cross_arm64: Cross-compilation from x86_64 to ARM64
+build:linux_x86_64_cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_platform
+build:linux_x86_64_cross_arm64 --extra_toolchains=@eros_forge//bazel/toolchain:cc-toolchain-x86_64-to-arm64
+
+# linux_arm64_cross_arm64: Cross-compilation from ARM64 to ARM64
+build:linux_arm64_cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_platform
+build:linux_arm64_cross_arm64 --extra_toolchains=@eros_forge//bazel/toolchain:cc-toolchain-arm64-to-arm64
+
+# =============================================================================
+# Environment Variables
+# =============================================================================
+
 build --action_env=DEB_VERSION
 
-# Default build settings
+# =============================================================================
+# Default Build Settings
+# =============================================================================
+
 build --cxxopt=-std=c++20
 build --host_cxxopt=-std=c++20
 
-# Release build
+# =============================================================================
+# Release Build (with symbol separation)
+# =============================================================================
+
 build:release --compilation_mode=opt
 build:release --copt=-O3
 build:release --copt=-DNDEBUG
+build:release --copt=-g
+build:release --linkopt=-Wl,-s
+build:release --features=separate_debug_info
 
-# Debug build
+# =============================================================================
+# Debug Build (with ASan + UBSan enabled by default)
+# =============================================================================
+#
+# Debug mode enables AddressSanitizer and UndefinedBehaviorSanitizer by default
+# to detect memory errors and undefined behavior during development.
+#
+# Detected issues:
+# - Memory errors: buffer overflows, use-after-free, memory leaks
+# - Undefined behavior: integer overflow, null pointer dereference, division by zero
+
 build:debug --compilation_mode=dbg
 build:debug --copt=-g
+build:debug --features=asan
+build:debug --features=ubsan
 
-# Test settings
+# =============================================================================
+# Test Settings
+# =============================================================================
+#
+# Sanitizers are configured in each test's BUILD.bazel for flexibility:
+# - Regular tests: features = ["asan", "ubsan"]
+# - Concurrent tests: features = ["-asan", "ubsan", "tsan"]
+#
+# This ensures all code (including dependencies) uses the same sanitizer.
+
 test --test_output=errors
 test --test_verbose_timeout_warnings
+
+# =============================================================================
+# Sanitizer Configurations (manual selection)
+# =============================================================================
+#
+# Usage examples:
+#   bazel build //... --config=asan    # AddressSanitizer only
+#   bazel build //... --config=tsan    # ThreadSanitizer (for concurrent testing)
+#   bazel build //... --config=msan    # MemorySanitizer
+#
+# Note: ASan and TSan are mutually exclusive
+# Note: MSan requires all code (including libraries) to be compiled with MSan
+# Note: Sanitizers use static linking (-static-libsan)
+
+# AddressSanitizer (ASan) - Detects memory errors
+# - Buffer overflows
+# - Use-after-free
+# - Use-after-return
+# - Memory leaks
+build:asan --features=asan
+build:asan --compilation_mode=dbg
+
+# ThreadSanitizer (TSan) - Detects data races
+# - Data races
+# - Deadlocks
+build:tsan --features=tsan
+build:tsan --compilation_mode=dbg
+
+# UndefinedBehaviorSanitizer (UBSan) - Detects undefined behavior
+# - Integer overflow
+# - Null pointer dereference
+# - Division by zero
+build:ubsan --features=ubsan
+build:ubsan --compilation_mode=dbg
+
+# MemorySanitizer (MSan) - Detects uninitialized memory reads
+# - Use of uninitialized memory
+build:msan --features=msan
+build:msan --compilation_mode=dbg

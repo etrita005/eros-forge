@@ -6,11 +6,27 @@ ACTION_NAMES = struct(
     c_compile = "c-compile",
     cpp_compile = "c++-compile",
     cpp_link_executable = "c++-link-executable",
+    cpp_link_dynamic_library = "c++-link-dynamic-library",
+    cpp_link_nodeps_dynamic_library = "c++-link-nodeps-dynamic-library",
     cpp_module_compile = "c++-module-compile",
     cpp_header_parsing = "c++-header-parsing",
+    strip = "strip",
 )
 
 def _impl(ctx):
+    all_compile_actions = [
+        ACTION_NAMES.c_compile,
+        ACTION_NAMES.cpp_compile,
+        ACTION_NAMES.cpp_module_compile,
+        ACTION_NAMES.cpp_header_parsing,
+    ]
+
+    all_link_actions = [
+        ACTION_NAMES.cpp_link_executable,
+        ACTION_NAMES.cpp_link_dynamic_library,
+        ACTION_NAMES.cpp_link_nodeps_dynamic_library,
+    ]
+
     features = [
         feature(
             name = "c++20",
@@ -30,7 +46,185 @@ def _impl(ctx):
         ),
         feature(name = "supports_pic", enabled = True),
         feature(name = "supports_dynamic_linker", enabled = True),
+        feature(
+            name = "static_link_cpp_runtimes",
+            enabled = False,
+            flag_sets = [
+                flag_set(
+                    actions = all_link_actions,
+                    flag_groups = [
+                        flag_group(flags = ["-static-libstdc++", "-static-libgcc"]),
+                    ],
+                ),
+            ],
+        ),
+        feature(
+            name = "opt",
+            flag_sets = [
+                flag_set(
+                    actions = all_compile_actions,
+                    flag_groups = [
+                        flag_group(flags = [
+                            "-g",
+                            "-O3",
+                            "-DNDEBUG",
+                            "-fno-omit-frame-pointer",
+                        ]),
+                    ],
+                ),
+            ],
+        ),
+        feature(
+            name = "dbg",
+            flag_sets = [
+                flag_set(
+                    actions = all_compile_actions,
+                    flag_groups = [
+                        flag_group(flags = ["-g", "-O0"]),
+                    ],
+                ),
+            ],
+        ),
+        feature(
+            name = "coverage",
+            flag_sets = [
+                flag_set(
+                    actions = all_compile_actions,
+                    flag_groups = [
+                        flag_group(flags = ["--coverage", "-fprofile-arcs", "-ftest-coverage"]),
+                    ],
+                ),
+                flag_set(
+                    actions = all_link_actions,
+                    flag_groups = [
+                        flag_group(flags = ["--coverage"]),
+                    ],
+                ),
+            ],
+        ),
+        feature(
+            name = "asan",
+            flag_sets = [
+                flag_set(
+                    actions = all_compile_actions,
+                    flag_groups = [
+                        flag_group(flags = [
+                            "-fsanitize=address",
+                            "-fno-omit-frame-pointer",
+                            "-fno-optimize-sibling-calls",
+                            "-g",
+                            "-O1",
+                        ]),
+                    ],
+                ),
+                flag_set(
+                    actions = all_link_actions,
+                    flag_groups = [
+                        flag_group(flags = ["-fsanitize=address"]),
+                    ],
+                ),
+            ],
+        ),
+        feature(
+            name = "tsan",
+            flag_sets = [
+                flag_set(
+                    actions = all_compile_actions,
+                    flag_groups = [
+                        flag_group(flags = [
+                            "-fsanitize=thread",
+                            "-fno-omit-frame-pointer",
+                            "-fno-optimize-sibling-calls",
+                            "-g",
+                            "-O1",
+                        ]),
+                    ],
+                ),
+                flag_set(
+                    actions = all_link_actions,
+                    flag_groups = [
+                        flag_group(flags = ["-fsanitize=thread"]),
+                    ],
+                ),
+            ],
+        ),
+        feature(
+            name = "ubsan",
+            flag_sets = [
+                flag_set(
+                    actions = all_compile_actions,
+                    flag_groups = [
+                        flag_group(flags = [
+                            "-fsanitize=undefined",
+                            "-fno-omit-frame-pointer",
+                            "-g",
+                            "-O1",
+                        ]),
+                    ],
+                ),
+                flag_set(
+                    actions = all_link_actions,
+                    flag_groups = [
+                        flag_group(flags = ["-fsanitize=undefined"]),
+                    ],
+                ),
+            ],
+        ),
+        feature(
+            name = "msan",
+            flag_sets = [
+                flag_set(
+                    actions = all_compile_actions,
+                    flag_groups = [
+                        flag_group(flags = [
+                            "-fsanitize=memory",
+                            "-fno-omit-frame-pointer",
+                            "-g",
+                            "-O1",
+                        ]),
+                    ],
+                ),
+                flag_set(
+                    actions = all_link_actions,
+                    flag_groups = [
+                        flag_group(flags = ["-fsanitize=memory"]),
+                    ],
+                ),
+            ],
+        ),
     ]
+
+    if ctx.attr.sysroot:
+        features.append(
+            feature(
+                name = "sysroot",
+                enabled = True,
+                flag_sets = [
+                    flag_set(
+                        actions = all_compile_actions + all_link_actions,
+                        flag_groups = [
+                            flag_group(flags = ["--sysroot=" + ctx.attr.sysroot]),
+                        ],
+                    ),
+                ],
+            )
+        )
+
+    if ctx.attr.extra_link_flags:
+        features.append(
+            feature(
+                name = "extra_link_flags",
+                enabled = True,
+                flag_sets = [
+                    flag_set(
+                        actions = all_link_actions,
+                        flag_groups = [
+                            flag_group(flags = ctx.attr.extra_link_flags),
+                        ],
+                    ),
+                ],
+            )
+        )
 
     return cc_common.create_cc_toolchain_config_info(
         ctx = ctx,
@@ -48,6 +242,7 @@ def _impl(ctx):
             tool_path(name = "nm", path = ctx.attr.nm_path),
             tool_path(name = "objdump", path = ctx.attr.objdump_path),
             tool_path(name = "strip", path = ctx.attr.strip_path),
+            tool_path(name = "objcopy", path = ctx.attr.objcopy_path),
         ],
         target_cpu = ctx.attr.cpu,
         target_system_name = ctx.attr.target_system_name,
@@ -79,7 +274,10 @@ cc_toolchain_config = rule(
         "nm_path": attr.string(mandatory = True),
         "objdump_path": attr.string(mandatory = True),
         "strip_path": attr.string(mandatory = True),
+        "objcopy_path": attr.string(mandatory = True),
         "cxx_builtin_include_directories": attr.string_list(mandatory = True),
+        "sysroot": attr.string(default = ""),
+        "extra_link_flags": attr.string_list(default = []),
     },
     provides = [CcToolchainConfigInfo],
 )
