@@ -78,6 +78,7 @@ build:debug --compilation_mode=dbg
 build:debug --copt=-g
 build:debug --features=asan
 build:debug --features=ubsan
+build:debug --define=cmake_build_type=Debug
 
 # =============================================================================
 # CMake Build Configuration

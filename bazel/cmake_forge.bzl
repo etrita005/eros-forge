@@ -5,14 +5,6 @@ def cmake_forge(name, **kwargs):
     generate_crosstool_file = kwargs.pop("generate_crosstool_file", False)
     data = kwargs.pop("data", [])
     
-    # 根据 Bazel 的 compilation_mode 自动设置 CMAKE_BUILD_TYPE
-    # 如果用户已经在 cache_entries 中设置了 CMAKE_BUILD_TYPE，则使用用户的设置
-    cmake_build_type = select({
-        "@eros_forge//bazel/toolchain:cmake_release": "Release",
-        "@eros_forge//bazel/toolchain:cmake_debug": "Debug",
-        "//conditions:default": "Release",  # 默认使用 Release
-    })
-    
     native.filegroup(
         name = "_{}_toolchain_file".format(name),
         srcs = select({
@@ -25,16 +17,28 @@ def cmake_forge(name, **kwargs):
         visibility = ["//visibility:private"],
     )
     
-    # 合并 cache_entries，用户的设置会覆盖自动设置的 CMAKE_BUILD_TYPE
-    final_cache_entries = {
-        "CMAKE_BUILD_TYPE": cmake_build_type,
-        "CMAKE_TOOLCHAIN_FILE": "$(location :_{}_toolchain_file)".format(name),
-    }
-    final_cache_entries.update(cache_entries)
+    # 由于 rules_foreign_cc 的 cache_entries 不支持 select，
+    # 我们使用两个不同的目标来支持 Debug 和 Release 模式
     
+    # Debug 模式目标
+    cmake(
+        name = "{}_debug".format(name),
+        cache_entries = {
+            "CMAKE_BUILD_TYPE": "Debug",
+            "CMAKE_TOOLCHAIN_FILE": "$(location :_{}_toolchain_file)".format(name),
+        } | cache_entries,
+        generate_crosstool_file = generate_crosstool_file,
+        data = data + [":_{}_toolchain_file".format(name)],
+        **kwargs
+    )
+    
+    # Release 模式目标（默认）
     cmake(
         name = name,
-        cache_entries = final_cache_entries,
+        cache_entries = {
+            "CMAKE_BUILD_TYPE": "Release",
+            "CMAKE_TOOLCHAIN_FILE": "$(location :_{}_toolchain_file)".format(name),
+        } | cache_entries,
         generate_crosstool_file = generate_crosstool_file,
         data = data + [":_{}_toolchain_file".format(name)],
         **kwargs
