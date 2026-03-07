@@ -9,8 +9,8 @@ set(CMAKE_SYSTEM_PROCESSOR aarch64)
 set(CMAKE_C_COMPILER /usr/bin/aarch64-linux-gnu-gcc)
 set(CMAKE_CXX_COMPILER /usr/bin/aarch64-linux-gnu-g++)
 
-# Assembler - must be explicitly set for cross-compilation
-set(CMAKE_ASM_COMPILER /usr/bin/aarch64-linux-gnu-as)
+# Assembler - use gcc as assembler driver with -B flag to find correct tools
+set(CMAKE_ASM_COMPILER /usr/bin/aarch64-linux-gnu-gcc)
 
 # Other tools
 set(CMAKE_AR /usr/bin/aarch64-linux-gnu-ar)
@@ -20,6 +20,11 @@ set(CMAKE_OBJCOPY /usr/bin/aarch64-linux-gnu-objcopy)
 set(CMAKE_OBJDUMP /usr/bin/aarch64-linux-gnu-objdump)
 set(CMAKE_RANLIB /usr/bin/aarch64-linux-gnu-ranlib)
 set(CMAKE_STRIP /usr/bin/aarch64-linux-gnu-strip)
+
+# Compiler flags to use correct assembler and tools
+set(CMAKE_C_FLAGS "-B/usr/bin/aarch64-linux-gnu-")
+set(CMAKE_CXX_FLAGS "-B/usr/bin/aarch64-linux-gnu-")
+set(CMAKE_ASM_FLAGS "-B/usr/bin/aarch64-linux-gnu-")
 
 # Sysroot and library paths
 set(CMAKE_FIND_ROOT_PATH /usr/aarch64-linux-gnu)
