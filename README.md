@@ -8,7 +8,7 @@ Forge 是 EROS 项目的统一构建系统，基于 Bazel 9.0，提供跨平台�
 - [环境初始化](#环境初始化)
 - [构建配置](#构建配置)
 - [交叉编译](#交叉编译)
-- [CMake 项目集成](#cmake-项目集成)
+- [CMake 集成](#cmake-集成)
 - [部署与运行](#部署与运行)
 - [工具链配置](#工具链配置)
 - [Sanitizer 支持](#sanitizer-支持)
@@ -265,14 +265,20 @@ readelf -d bazel-bin/my_app | grep -E "(RPATH|RUNPATH)"
 - 无需在目标机上安装额外的库
 - 提高程序的可移植性和可靠性
 
-## CMake 项目集成
+## CMake 集成
 
-Forge 提供了 `cmake_forge` 宏，用于集成使用 CMake 构建的外部项目。该宏会根据 Bazel 的构建配置自动选择正确的 CMake toolchain 文件。
+Forge 提供了 `cmake_forge` 宏，用于在 Bazel 中构建 CMake 项目，并自动根据构建配置选择正确的 CMake toolchain 文件。
 
 ### 基本用法
 
 ```python
+# BUILD.bazel
 load("@eros_forge//bazel:cmake_forge.bzl", "cmake_forge")
+
+filegroup(
+    name = "srcs",
+    srcs = glob(["src/**/*.cpp", "CMakeLists.txt"]),
+)
 
 cmake_forge(
     name = "my_cmake_lib",
@@ -284,16 +290,29 @@ cmake_forge(
 )
 ```
 
+### 构建可执行文件
+
+```python
+cmake_forge(
+    name = "my_cmake_app",
+    lib_source = ":srcs",
+    out_binaries = ["myapp"],
+    cache_entries = {
+        "CMAKE_BUILD_TYPE": "Release",
+    },
+)
+```
+
 ### 支持的配置
 
-`cmake_forge` 自动支持以下构建配置：
+`cmake_forge` 会根据 Bazel 的构建配置自动选择对应的 CMake toolchain 文件：
 
-| 配置 | CMake Toolchain |
-|------|-----------------|
-| `--config=linux_x86_64` | 原生 x86_64 编译 |
-| `--config=linux_arm64` | 原生 ARM64 编译 |
-| `--config=linux_x86_64_cross_arm64` | x86_64 到 ARM64 交叉编译 |
-| `--config=linux_arm64_cross_arm64` | ARM64 到 ARM64 交叉编译 |
+| Bazel 配置 | CMake Toolchain 文件 |
+|------------|---------------------|
+| `--config=linux_x86_64` | `linux_x86_64.cmake` |
+| `--config=linux_arm64` | `linux_arm64.cmake` |
+| `--config=linux_x86_64_cross_arm64` | `linux_x86_64_cross_arm64.cmake` |
+| `--config=linux_arm64_cross_arm64` | `linux_arm64_cross_arm64.cmake` |
 
 ### 构建示例
 
@@ -307,42 +326,63 @@ bazel build //:my_cmake_lib --config=linux_x86_64_cross_arm64
 
 ### CMake Toolchain 文件
 
-Forge 提供的 CMake toolchain 文件位于 `bazel/toolchain/cmake/` 目录：
+CMake toolchain 文件位于 `bazel/toolchain/cmake/` 目录：
 
-- `linux_x86_64.cmake` - x86_64 原生编译
-- `linux_arm64.cmake` - ARM64 原生编译
-- `linux_x86_64_cross_arm64.cmake` - x86_64 到 ARM64 交叉编译
-- `linux_arm64_cross_arm64.cmake` - ARM64 到 ARM64 交叉编译
+```
+bazel/toolchain/cmake/
+├── BUILD.bazel
+├── linux_x86_64.cmake              # x86_64 原生编译
+├── linux_arm64.cmake               # ARM64 原生编译
+├── linux_x86_64_cross_arm64.cmake  # x86_64 到 ARM64 交叉编译
+└── linux_arm64_cross_arm64.cmake   # ARM64 到 ARM64 交叉编译
+```
 
-交叉编译 toolchain 文件包含：
-- 正确的交叉编译器路径
-- 汇编器和链接器配置
-- 必要的编译器标志（如 `-B` 标志用于找到正确的工具）
-- 目标平台的库搜索路径
+#### 交叉编译 Toolchain 示例
 
-### 完整示例
+`linux_x86_64_cross_arm64.cmake` 内容：
+
+```cmake
+# CMake toolchain file for cross-compilation from x86_64 to ARM64
+set(CMAKE_SYSTEM_NAME Linux)
+set(CMAKE_SYSTEM_PROCESSOR aarch64)
+
+# Cross-compiler
+set(CMAKE_C_COMPILER /usr/bin/aarch64-linux-gnu-gcc)
+set(CMAKE_CXX_COMPILER /usr/bin/aarch64-linux-gnu-g++)
+
+# Compiler flags to use correct assembler
+set(CMAKE_C_FLAGS "-B/usr/bin/aarch64-linux-gnu-")
+set(CMAKE_CXX_FLAGS "-B/usr/bin/aarch64-linux-gnu-")
+
+# Cross-compilation settings
+set(CMAKE_FIND_ROOT_PATH /usr/aarch64-linux-gnu)
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+```
+
+### 自定义 CMake Toolchain
+
+如果需要自定义 CMake toolchain，可以在项目中创建自己的 toolchain 文件，并通过 `cache_entries` 传递：
 
 ```python
-# BUILD.bazel
-load("@eros_forge//bazel:cmake_forge.bzl", "cmake_forge")
-
-filegroup(
-    name = "srcs",
-    srcs = glob(["src/**/*.cpp", "CMakeLists.txt"]),
-)
-
 cmake_forge(
-    name = "my_cmake_project",
+    name = "my_lib",
     lib_source = ":srcs",
-    out_binaries = ["my_binary"],
     out_static_libs = ["libmylib.a"],
     cache_entries = {
         "CMAKE_BUILD_TYPE": "Release",
-        "ENABLE_FEATURE_X": "ON",
+        "MY_CUSTOM_OPTION": "ON",
     },
-    visibility = ["//visibility:public"],
+    generate_crosstool_file = False,  # 禁用自动生成
 )
 ```
+
+### 注意事项
+
+1. **交叉编译汇编器**：交叉编译时需要 `-B` 标志来确保 GCC 找到正确的汇编器
+2. **依赖管理**：CMake 项目的依赖需要通过 `data` 属性传递
+3. **输出路径**：编译产物位于 `bazel-bin/<target>/bin/` 目录
 
 ## 部署与运行
 
