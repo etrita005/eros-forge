@@ -8,8 +8,8 @@ Forge 是 EROS 项目的统一构建系统，基于 Bazel 9.0，提供跨平台�
 - [环境初始化](#环境初始化)
 - [构建配置](#构建配置)
 - [交叉编译](#交叉编译)
-- [CMake 集成](#cmake-集成)
 - [部署与运行](#部署与运行)
+- [CMake 集成](#cmake-集成)
 - [工具链配置](#工具链配置)
 - [Sanitizer 支持](#sanitizer-支持)
 
@@ -264,125 +264,6 @@ readelf -d bazel-bin/my_app | grep -E "(RPATH|RUNPATH)"
 - 程序使用与目标机兼容的 glibc 版本
 - 无需在目标机上安装额外的库
 - 提高程序的可移植性和可靠性
-
-## CMake 集成
-
-Forge 提供了 `cmake_forge` 宏，用于在 Bazel 中构建 CMake 项目，并自动根据构建配置选择正确的 CMake toolchain 文件。
-
-### 基本用法
-
-```python
-# BUILD.bazel
-load("@eros_forge//bazel:cmake_forge.bzl", "cmake_forge")
-
-filegroup(
-    name = "srcs",
-    srcs = glob(["src/**/*.cpp", "CMakeLists.txt"]),
-)
-
-cmake_forge(
-    name = "my_cmake_lib",
-    lib_source = ":srcs",
-    out_static_libs = ["libmylib.a"],
-    cache_entries = {
-        "CMAKE_BUILD_TYPE": "Release",
-    },
-)
-```
-
-### 构建可执行文件
-
-```python
-cmake_forge(
-    name = "my_cmake_app",
-    lib_source = ":srcs",
-    out_binaries = ["myapp"],
-    cache_entries = {
-        "CMAKE_BUILD_TYPE": "Release",
-    },
-)
-```
-
-### 支持的配置
-
-`cmake_forge` 会根据 Bazel 的构建配置自动选择对应的 CMake toolchain 文件：
-
-| Bazel 配置 | CMake Toolchain 文件 |
-|------------|---------------------|
-| `--config=linux_x86_64` | `linux_x86_64.cmake` |
-| `--config=linux_arm64` | `linux_arm64.cmake` |
-| `--config=linux_x86_64_cross_arm64` | `linux_x86_64_cross_arm64.cmake` |
-| `--config=linux_arm64_cross_arm64` | `linux_arm64_cross_arm64.cmake` |
-
-### 构建示例
-
-```bash
-# 原生 x86_64 编译
-bazel build //:my_cmake_lib --config=linux_x86_64
-
-# 交叉编译到 ARM64
-bazel build //:my_cmake_lib --config=linux_x86_64_cross_arm64
-```
-
-### CMake Toolchain 文件
-
-CMake toolchain 文件位于 `bazel/toolchain/cmake/` 目录：
-
-```
-bazel/toolchain/cmake/
-├── BUILD.bazel
-├── linux_x86_64.cmake              # x86_64 原生编译
-├── linux_arm64.cmake               # ARM64 原生编译
-├── linux_x86_64_cross_arm64.cmake  # x86_64 到 ARM64 交叉编译
-└── linux_arm64_cross_arm64.cmake   # ARM64 到 ARM64 交叉编译
-```
-
-#### 交叉编译 Toolchain 示例
-
-`linux_x86_64_cross_arm64.cmake` 内容：
-
-```cmake
-# CMake toolchain file for cross-compilation from x86_64 to ARM64
-set(CMAKE_SYSTEM_NAME Linux)
-set(CMAKE_SYSTEM_PROCESSOR aarch64)
-
-# Cross-compiler
-set(CMAKE_C_COMPILER /usr/bin/aarch64-linux-gnu-gcc)
-set(CMAKE_CXX_COMPILER /usr/bin/aarch64-linux-gnu-g++)
-
-# Compiler flags to use correct assembler
-set(CMAKE_C_FLAGS "-B/usr/bin/aarch64-linux-gnu-")
-set(CMAKE_CXX_FLAGS "-B/usr/bin/aarch64-linux-gnu-")
-
-# Cross-compilation settings
-set(CMAKE_FIND_ROOT_PATH /usr/aarch64-linux-gnu)
-set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
-set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
-set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
-```
-
-### 自定义 CMake Toolchain
-
-如果需要自定义 CMake toolchain，可以在项目中创建自己的 toolchain 文件，并通过 `cache_entries` 传递：
-
-```python
-cmake_forge(
-    name = "my_lib",
-    lib_source = ":srcs",
-    out_static_libs = ["libmylib.a"],
-    cache_entries = {
-        "CMAKE_BUILD_TYPE": "Release",
-        "MY_CUSTOM_OPTION": "ON",
-    },
-    generate_crosstool_file = False,  # 禁用自动生成
-)
-```
-
-### 注意事项
-
-1. **交叉编译汇编器**：交叉编译时需要 `-B` 标志来确保 GCC 找到正确的汇编器
-2. **依赖管理**：CMake 项目的依赖需要通过 `data` 属性传递
-3. **输出路径**：编译产物位于 `bazel-bin/<target>/bin/` 目录
 
 ## 部署与运行
 
@@ -757,9 +638,98 @@ A: 这通常是因为动态链接器路径不正确。使用 `readelf -l` 检查
 
 A: Release 模式启用了 `separate_debug_info` 特性，会在编译时生成独立的调试符号文件，减小发布二进制的体积，同时保留调试能力。
 
+## CMake 集成
+
+Forge 提供了 `cmake_forge` 宏，用于在 Bazel 中构建 CMake 项目，并自动根据 Bazel 配置选择正确的 CMake toolchain 文件。
+
+### 支持的配置
+
+| 配置 | CMake Toolchain 文件 | 说明 |
+|------|---------------------|------|
+| `--config=linux_x86_64` | `linux_x86_64.cmake` | x86_64 原生编译 |
+| `--config=linux_arm64` | `linux_arm64.cmake` | ARM64 原生编译 |
+| `--config=linux_x86_64_cross_arm64` | `linux_x86_64_cross_arm64.cmake` | x86_64 到 ARM64 交叉编译 |
+| `--config=linux_arm64_cross_arm64` | `linux_arm64_cross_arm64.cmake` | ARM64 到 ARM64 交叉编译 |
+
+### 使用方法
+
+在你的项目 `MODULE.bazel` 中添加：
+
+```python
+# MODULE.bazel
+bazel_dep(name = "eros_forge", version = "0.1.0")
+bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
+```
+
+在 `BUILD.bazel` 中使用 `cmake_forge`：
+
+```python
+load("@eros_forge//bazel:cmake_forge.bzl", "cmake_forge")
+
+filegroup(
+    name = "src_files",
+    srcs = glob(["*.cpp", "CMakeLists.txt"]),
+)
+
+cmake_forge(
+    name = "hello_world_cmake",
+    lib_source = ":src_files",
+    out_binaries = ["hello_cmake"],
+    cache_entries = {
+        "CMAKE_BUILD_TYPE": "Release",
+    },
+)
+```
+
+### 构建示例
+
+```bash
+# x86_64 原生编译
+bazel build //:hello_world_cmake --config=linux_x86_64
+
+# 交叉编译到 ARM64
+bazel build //:hello_world_cmake --config=linux_x86_64_cross_arm64
+
+# 验证生成的二进制文件架构
+file bazel-bin/hello_world_cmake/bin/hello_cmake
+```
+
+### CMake Toolchain 文件
+
+Forge 根据 Bazel 配置自动选择对应的 CMake toolchain 文件，位于 `bazel/toolchain/cmake/`：
+
+```
+bazel/toolchain/cmake/
+├── BUILD.bazel
+├── linux_x86_64.cmake              # x86_64 原生编译
+├── linux_arm64.cmake               # ARM64 原生编译
+├── linux_x86_64_cross_arm64.cmake  # 交叉编译（x86_64 -> ARM64）
+└── linux_arm64_cross_arm64.cmake   # 交叉编译（ARM64 -> ARM64）
+```
+
+每个 toolchain 文件定义了：
+- `CMAKE_SYSTEM_NAME` 和 `CMAKE_SYSTEM_PROCESSOR`：目标系统信息
+- `CMAKE_C_COMPILER` 和 `CMAKE_CXX_COMPILER`：编译器路径
+- `CMAKE_ASM_COMPILER`：汇编器配置
+- `CMAKE_FIND_ROOT_PATH_MODE_*`：交叉编译查找模式
+- 链接器标志和库搜索路径
+
+### 工作原理
+
+1. `cmake_forge` 宏根据 `--config` 参数通过 `select()` 选择对应的 toolchain 文件
+2. 将 toolchain 文件路径通过 `CMAKE_TOOLCHAIN_FILE` 传递给 CMake
+3. CMake 使用指定的 toolchain 进行编译，确保与 Bazel 的编译配置一致
+
+### 注意事项
+
+1. **交叉编译器路径**：确保交叉编译工具链已安装（如 `gcc-aarch64-linux-gnu`）
+2. **汇编器配置**：交叉编译 toolchain 文件使用 `-B` 标志确保找到正确的汇编器
+3. **库依赖**：交叉编译的程序需要目标机上有兼容的 glibc 版本
+
 ## 参考资源
 
 - [Bazel 官方文档](https://bazel.build/)
 - [Bazel C++ Toolchain 配置](https://bazel.build/extending/cc-toolchain)
 - [GCC 交叉编译指南](https://gcc.gnu.org/onlinedocs/gccint/Configure-Terms.html)
 - [Glibc 交叉编译](https://sourceware.org/glibc/wiki/Testing/Builds)
+- [rules_foreign_cc 文档](https://github.com/bazelbuild/rules_foreign_cc)
