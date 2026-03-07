@@ -20,8 +20,7 @@ def cmake_forge(name, **kwargs):
     cmake(
         name = name,
         cache_entries = cache_entries | {
-            "CMAKE_TOOLCHAIN_FILE": "$(location :_{}_toolc
-            hain_file)".format(name),
+            "CMAKE_TOOLCHAIN_FILE": "$(location :_{}_toolchain_file)".format(name),
         },
         generate_crosstool_file = generate_crosstool_file,
         data = data + [":_{}_toolchain_file".format(name)],
