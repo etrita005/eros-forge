@@ -1,0 +1,24 @@
+# Bazel
+bazel-*
+*.lock
+MODULE.bazel.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.o
+*.a
+*.so
+*.exe
+
+# Logs
+*.log
