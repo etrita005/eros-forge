@@ -8,6 +8,7 @@ Forge 是 EROS 项目的统一构建系统，基于 Bazel 9.0，提供跨平台�
 - [环境初始化](#环境初始化)
 - [构建配置](#构建配置)
 - [交叉编译](#交叉编译)
+- [CMake 项目集成](#cmake-项目集成)
 - [部署与运行](#部署与运行)
 - [工具链配置](#工具链配置)
 - [Sanitizer 支持](#sanitizer-支持)
@@ -263,6 +264,85 @@ readelf -d bazel-bin/my_app | grep -E "(RPATH|RUNPATH)"
 - 程序使用与目标机兼容的 glibc 版本
 - 无需在目标机上安装额外的库
 - 提高程序的可移植性和可靠性
+
+## CMake 项目集成
+
+Forge 提供了 `cmake_forge` 宏，用于集成使用 CMake 构建的外部项目。该宏会根据 Bazel 的构建配置自动选择正确的 CMake toolchain 文件。
+
+### 基本用法
+
+```python
+load("@eros_forge//bazel:cmake_forge.bzl", "cmake_forge")
+
+cmake_forge(
+    name = "my_cmake_lib",
+    lib_source = ":srcs",
+    out_static_libs = ["libmylib.a"],
+    cache_entries = {
+        "CMAKE_BUILD_TYPE": "Release",
+    },
+)
+```
+
+### 支持的配置
+
+`cmake_forge` 自动支持以下构建配置：
+
+| 配置 | CMake Toolchain |
+|------|-----------------|
+| `--config=linux_x86_64` | 原生 x86_64 编译 |
+| `--config=linux_arm64` | 原生 ARM64 编译 |
+| `--config=linux_x86_64_cross_arm64` | x86_64 到 ARM64 交叉编译 |
+| `--config=linux_arm64_cross_arm64` | ARM64 到 ARM64 交叉编译 |
+
+### 构建示例
+
+```bash
+# 原生 x86_64 编译
+bazel build //:my_cmake_lib --config=linux_x86_64
+
+# 交叉编译到 ARM64
+bazel build //:my_cmake_lib --config=linux_x86_64_cross_arm64
+```
+
+### CMake Toolchain 文件
+
+Forge 提供的 CMake toolchain 文件位于 `bazel/toolchain/cmake/` 目录：
+
+- `linux_x86_64.cmake` - x86_64 原生编译
+- `linux_arm64.cmake` - ARM64 原生编译
+- `linux_x86_64_cross_arm64.cmake` - x86_64 到 ARM64 交叉编译
+- `linux_arm64_cross_arm64.cmake` - ARM64 到 ARM64 交叉编译
+
+交叉编译 toolchain 文件包含：
+- 正确的交叉编译器路径
+- 汇编器和链接器配置
+- 必要的编译器标志（如 `-B` 标志用于找到正确的工具）
+- 目标平台的库搜索路径
+
+### 完整示例
+
+```python
+# BUILD.bazel
+load("@eros_forge//bazel:cmake_forge.bzl", "cmake_forge")
+
+filegroup(
+    name = "srcs",
+    srcs = glob(["src/**/*.cpp", "CMakeLists.txt"]),
+)
+
+cmake_forge(
+    name = "my_cmake_project",
+    lib_source = ":srcs",
+    out_binaries = ["my_binary"],
+    out_static_libs = ["libmylib.a"],
+    cache_entries = {
+        "CMAKE_BUILD_TYPE": "Release",
+        "ENABLE_FEATURE_X": "ON",
+    },
+    visibility = ["//visibility:public"],
+)
+```
 
 ## 部署与运行
 
