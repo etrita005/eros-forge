@@ -23,6 +23,16 @@ config_setting(
     define_values = {"eros_config": "linux_arm64_cross_arm64"},
 )
 
+config_setting(
+    name = "cmake_release",
+    define_values = {"cmake_build_type": "Release"},
+)
+
+config_setting(
+    name = "cmake_debug",
+    define_values = {"cmake_build_type": "Debug"},
+)
+
 platform(
     name = "linux_x86_64_platform",
     constraint_values = [

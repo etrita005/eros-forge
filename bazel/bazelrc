@@ -80,6 +80,23 @@ build:debug --features=asan
 build:debug --features=ubsan
 
 # =============================================================================
+# CMake Build Configuration
+# =============================================================================
+#
+# CMake projects need explicit CMAKE_BUILD_TYPE configuration.
+# These settings ensure CMake projects use consistent build options with Bazel.
+#
+# Note: rules_foreign_cc's cmake rule uses the Bazel cc_toolchain, so
+# compiler flags are automatically applied. But CMAKE_BUILD_TYPE must be
+# explicitly set to ensure CMake's internal logic is consistent.
+
+# Release mode for CMake: use -O3 optimization and disable debug assertions
+build:release --define=cmake_build_type=Release
+
+# Debug mode for CMake: enable debug symbols and assertions
+build:debug --define=cmake_build_type=Debug
+
+# =============================================================================
 # Test Settings
 # =============================================================================
 #
