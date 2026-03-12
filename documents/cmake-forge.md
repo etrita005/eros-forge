@@ -24,8 +24,9 @@
 ```
 cmake_forge (宏)
     ├── native.filegroup - 选择工具链文件
-    ├── cmake (debug) - Debug 构建目标
-    └── cmake (release) - Release 构建目标
+    ├── cmake (_{name}_release) - Release 构建目标
+    ├── cmake (_{name}_debug) - Debug 构建目标
+    └── native.alias - 根据 --config 选择实际目标
 ```
 
 ## 规则详解
@@ -79,12 +80,22 @@ native.filegroup(
 
 ### 构建类型支持
 
-由于 `rules_foreign_cc` 的 `cache_entries` 不支持 `select`，使用两个不同的目标来支持 Debug 和 Release 模式：
+由于 `rules_foreign_cc` 的 `cache_entries` 不支持 `select`，使用 alias + select 来支持 Debug 和 Release 模式：
 
 ```python
-# Debug 模式目标
+# Release 目标
 cmake(
-    name = "{}_debug".format(name),
+    name = "_{}_release".format(name),
+    cache_entries = {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TOOLCHAIN_FILE": "$(location :_{}_toolchain_file)".format(name),
+    } | cache_entries,
+    ...
+)
+
+# Debug 目标
+cmake(
+    name = "_{}_debug".format(name),
     cache_entries = {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_TOOLCHAIN_FILE": "$(location :_{}_toolchain_file)".format(name),
@@ -92,15 +103,25 @@ cmake(
     ...
 )
 
-# Release 模式目标（默认）
-cmake(
+# Alias 根据 --config=debug/release 选择实际目标
+native.alias(
     name = name,
-    cache_entries = {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_TOOLCHAIN_FILE": "$(location :_{}_toolchain_file)".format(name),
-    } | cache_entries,
+    actual = select({
+        "@eros_forge//bazel/toolchain:cmake_debug": "_{}_debug".format(name),
+        "//conditions:default": "_{}_release".format(name),
+    }),
     ...
 )
+```
+
+使用 `--config=debug` 或 `--config=release` 来选择构建类型：
+
+```bash
+# Release 模式（默认）
+bazel build //:my_lib --config=linux_arm64
+
+# Debug 模式
+bazel build //:my_lib --config=linux_arm64 --config=debug
 ```
 
 ## 平台配置
@@ -162,21 +183,24 @@ set(CMAKE_EXE_LINKER_FLAGS "-L/usr/lib/gcc/aarch64-linux-gnu/13 -L/usr/aarch64-l
 ### 原生编译
 
 ```bash
-# ARM64 原生编译
+# ARM64 原生编译（Release 模式，默认）
 bazel build //:my_lib --config=linux_arm64
 
-# x86_64 原生编译
-bazel build //:my_lib
+# ARM64 原生编译（Debug 模式）
+bazel build //:my_lib --config=linux_arm64 --config=debug
 
-# Debug 模式
-bazel build //:my_lib_debug --config=linux_arm64
+# x86_64 原生编译
+bazel build //:my_lib --config=linux_x86_64
 ```
 
 ### 交叉编译
 
 ```bash
-# 交叉编译到 ARM64
+# 交叉编译到 ARM64（Release 模式）
 bazel build //:my_lib --config=linux_arm64_cross_arm64 --config=release
+
+# 交叉编译到 ARM64（Debug 模式）
+bazel build //:my_lib --config=linux_arm64_cross_arm64 --config=debug
 ```
 
 ## 常见参数

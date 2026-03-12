@@ -33,7 +33,7 @@ cmake_conan_forge (宏)
 | `conanfile` | label | 是 | conanfile.txt 或 conanfile.py 文件 |
 | `cmake_lists` | label | 是 | CMakeLists.txt 文件 |
 | `srcs` | label_list | 是 | 源文件列表 |
-| `target_name` | string | 是 | CMake 目标名称 |
+| `target_name` | string | 否 | CMake 目标名称（默认与 name 相同）|
 
 #### 使用示例
 

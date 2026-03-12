@@ -209,7 +209,7 @@ cmake_build = rule(
     executable = True,
 )
 
-def cmake_conan_forge(name, conanfile, cmake_lists, srcs, target_name, **kwargs):
+def cmake_conan_forge(name, conanfile, cmake_lists, srcs, target_name = None, **kwargs):
     """Build a CMake project with Conan dependencies using Bazel toolchain.
 
     This macro creates the necessary rules to:
@@ -217,13 +217,15 @@ def cmake_conan_forge(name, conanfile, cmake_lists, srcs, target_name, **kwargs)
     2. Build the CMake project using Conan-generated presets
 
     Args:
-        name: Name of the rule
+        name: Name of the rule (also used as CMake target name by default)
         conanfile: Label of the conanfile.txt or conanfile.py
         cmake_lists: Label of the CMakeLists.txt
         srcs: List of source files
-        target_name: Name of the CMake target to build
+        target_name: Name of the CMake target to build (defaults to name)
         **kwargs: Additional arguments
     """
+    if target_name == None:
+        target_name = name
 
     host_profile = select({
         "@eros_forge//bazel/toolchain:linux_x86_64_cross_arm64": "@eros_forge//bazel/toolchain/conan:linux_x86_64_cross_arm64_host_release",

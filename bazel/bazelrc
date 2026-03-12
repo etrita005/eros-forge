@@ -94,9 +94,6 @@ build:debug --define=cmake_build_type=Debug
 # Release mode for CMake: use -O3 optimization and disable debug assertions
 build:release --define=cmake_build_type=Release
 
-# Debug mode for CMake: enable debug symbols and assertions
-build:debug --define=cmake_build_type=Debug
-
 # =============================================================================
 # Test Settings
 # =============================================================================

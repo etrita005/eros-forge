@@ -1,5 +1,5 @@
 load(":cc_toolchain_config.bzl", "cc_toolchain_config")
-load("@rules_cc//cc:defs.bzl", "cc_toolchain", "cc_toolchain_suite")
+load("@rules_cc//cc:defs.bzl", "cc_toolchain")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -21,11 +21,6 @@ config_setting(
 config_setting(
     name = "linux_arm64_cross_arm64",
     define_values = {"eros_config": "linux_arm64_cross_arm64"},
-)
-
-config_setting(
-    name = "cmake_release",
-    define_values = {"cmake_build_type": "Release"},
 )
 
 config_setting(
@@ -249,16 +244,6 @@ cc_toolchain(
     objcopy_files = ":all_tools",
     strip_files = ":all_tools",
     supports_param_files = 1,
-)
-
-cc_toolchain_suite(
-    name = "toolchain",
-    toolchains = {
-        "x86_64|gcc": ":cc-toolchain-x86_64",
-        "x86_64": ":cc-toolchain-x86_64",
-        "aarch64|gcc": ":cc-toolchain-arm64-native",
-        "aarch64": ":cc-toolchain-arm64-native",
-    },
 )
 
 toolchain(
