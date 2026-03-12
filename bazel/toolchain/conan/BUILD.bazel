@@ -1,0 +1,75 @@
+package(default_visibility = ["//visibility:public"])
+
+# Native x86_64 profiles
+filegroup(
+    name = "linux_x86_64_release",
+    srcs = ["linux_x86_64_release.profile"],
+)
+
+filegroup(
+    name = "linux_x86_64_debug",
+    srcs = ["linux_x86_64_debug.profile"],
+)
+
+filegroup(
+    name = "linux_x86_64_build_release",
+    srcs = ["linux_x86_64_build_release.profile"],
+)
+
+# Native ARM64 profiles
+filegroup(
+    name = "linux_arm64_release",
+    srcs = ["linux_arm64_release.profile"],
+)
+
+filegroup(
+    name = "linux_arm64_debug",
+    srcs = ["linux_arm64_debug.profile"],
+)
+
+filegroup(
+    name = "linux_arm64_build_release",
+    srcs = ["linux_arm64_build_release.profile"],
+)
+
+# x86_64 -> ARM64 cross-compilation profiles
+filegroup(
+    name = "linux_x86_64_cross_arm64_host_release",
+    srcs = ["linux_x86_64_cross_arm64_host_release.profile"],
+)
+
+filegroup(
+    name = "linux_x86_64_cross_arm64_host_debug",
+    srcs = ["linux_x86_64_cross_arm64_host_debug.profile"],
+)
+
+filegroup(
+    name = "linux_x86_64_cross_arm64_build_release",
+    srcs = ["linux_x86_64_cross_arm64_build_release.profile"],
+)
+
+filegroup(
+    name = "linux_x86_64_cross_arm64_build_debug",
+    srcs = ["linux_x86_64_cross_arm64_build_debug.profile"],
+)
+
+# ARM64 -> ARM64 cross-compilation profiles (with custom glibc)
+filegroup(
+    name = "linux_arm64_cross_arm64_host_release",
+    srcs = ["linux_arm64_cross_arm64_host_release.profile"],
+)
+
+filegroup(
+    name = "linux_arm64_cross_arm64_host_debug",
+    srcs = ["linux_arm64_cross_arm64_host_debug.profile"],
+)
+
+filegroup(
+    name = "linux_arm64_cross_arm64_build_release",
+    srcs = ["linux_arm64_cross_arm64_build_release.profile"],
+)
+
+filegroup(
+    name = "linux_arm64_cross_arm64_build_debug",
+    srcs = ["linux_arm64_cross_arm64_build_debug.profile"],
+)
