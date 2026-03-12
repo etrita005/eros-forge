@@ -353,8 +353,8 @@ local_path_override(
 
 **问题**：Debug 构建没有生成调试符号。
 
-**解决方案**：使用 `_<name>_debug` 目标：
+**解决方案**：使用 `--config=debug` 来选择 Debug 模式：
 
 ```bash
-bazel build //:my_lib_debug
+bazel build //:my_lib --config=linux_arm64 --config=debug
 ```
