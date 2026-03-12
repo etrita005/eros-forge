@@ -3,4 +3,4 @@
 
 package(default_visibility = ["//visibility:public"])
 
-exports_files(["deb.bzl", "bazelrc", "cmake_forge.bzl"])
+exports_files(["deb.bzl", "bazelrc", "cmake_forge.bzl", "cmake_conan_forge.bzl"])
