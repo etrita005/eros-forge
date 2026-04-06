@@ -3,6 +3,21 @@ load("@rules_cc//cc:defs.bzl", "cc_toolchain")
 
 package(default_visibility = ["//visibility:public"])
 
+constraint_setting(
+    name = "glibc_type",
+    default_constraint_value = ":glibc_native",
+)
+
+constraint_value(
+    name = "glibc_native",
+    constraint_setting = ":glibc_type",
+)
+
+constraint_value(
+    name = "glibc_cross",
+    constraint_setting = ":glibc_type",
+)
+
 config_setting(
     name = "linux_x86_64",
     define_values = {"eros_config": "linux_x86_64"},
@@ -33,6 +48,7 @@ platform(
     constraint_values = [
         "@platforms//os:linux",
         "@platforms//cpu:x86_64",
+        ":glibc_native",
     ],
 )
 
@@ -41,6 +57,16 @@ platform(
     constraint_values = [
         "@platforms//os:linux",
         "@platforms//cpu:arm64",
+        ":glibc_native",
+    ],
+)
+
+platform(
+    name = "linux_arm64_cross_platform",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:arm64",
+        ":glibc_cross",
     ],
 )
 
@@ -255,6 +281,7 @@ toolchain(
     target_compatible_with = [
         "@platforms//os:linux",
         "@platforms//cpu:x86_64",
+        ":glibc_native",
     ],
     toolchain = ":cc-toolchain-x86_64",
     toolchain_type = "@rules_cc//cc:toolchain_type",
@@ -269,6 +296,7 @@ toolchain(
     target_compatible_with = [
         "@platforms//os:linux",
         "@platforms//cpu:arm64",
+        ":glibc_native",
     ],
     toolchain = ":cc-toolchain-arm64-native",
     toolchain_type = "@rules_cc//cc:toolchain_type",
@@ -283,6 +311,7 @@ toolchain(
     target_compatible_with = [
         "@platforms//os:linux",
         "@platforms//cpu:arm64",
+        ":glibc_cross",
     ],
     toolchain = ":cc-toolchain-arm64-cross-from-x86_64",
     toolchain_type = "@rules_cc//cc:toolchain_type",
@@ -297,6 +326,7 @@ toolchain(
     target_compatible_with = [
         "@platforms//os:linux",
         "@platforms//cpu:arm64",
+        ":glibc_cross",
     ],
     toolchain = ":cc-toolchain-arm64-cross-from-arm64",
     toolchain_type = "@rules_cc//cc:toolchain_type",

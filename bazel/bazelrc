@@ -30,13 +30,15 @@ build:linux_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_platform
 build:linux_arm64 --define=eros_config=linux_arm64
 
 # linux_x86_64_cross_arm64: Cross-compilation from x86_64 to ARM64
-build:linux_x86_64_cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_platform
+build:linux_x86_64_cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_cross_platform
 build:linux_x86_64_cross_arm64 --extra_toolchains=@eros_forge//bazel/toolchain:cc-toolchain-x86_64-to-arm64
+build:linux_x86_64_cross_arm64 --extra_execution_platforms=@platforms//host
 build:linux_x86_64_cross_arm64 --define=eros_config=linux_x86_64_cross_arm64
 
-# linux_arm64_cross_arm64: Cross-compilation from ARM64 to ARM64
-build:linux_arm64_cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_platform
+# linux_arm64_cross_arm64: Cross-compilation from ARM64 to ARM64 (with custom glibc)
+build:linux_arm64_cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_cross_platform
 build:linux_arm64_cross_arm64 --extra_toolchains=@eros_forge//bazel/toolchain:cc-toolchain-arm64-to-arm64
+build:linux_arm64_cross_arm64 --extra_execution_platforms=@platforms//host
 build:linux_arm64_cross_arm64 --define=eros_config=linux_arm64_cross_arm64
 
 # =============================================================================
