@@ -44,7 +44,7 @@ def cmake_forge(name, **kwargs):
         name = "_{}_release".format(name),
         cache_entries = {
             "CMAKE_BUILD_TYPE": "Release",
-            "CMAKE_TOOLCHAIN_FILE": "$(location {})".format(toolchain_file_target),
+            "CMAKE_TOOLCHAIN_FILE": "$(execpath {})".format(toolchain_file_target),
         } | cache_entries,
         generate_crosstool_file = generate_crosstool_file,
         data = data + [toolchain_file_target],
@@ -56,7 +56,7 @@ def cmake_forge(name, **kwargs):
         name = "_{}_debug".format(name),
         cache_entries = {
             "CMAKE_BUILD_TYPE": "Debug",
-            "CMAKE_TOOLCHAIN_FILE": "$(location {})".format(toolchain_file_target),
+            "CMAKE_TOOLCHAIN_FILE": "$(execpath {})".format(toolchain_file_target),
         } | cache_entries,
         generate_crosstool_file = generate_crosstool_file,
         data = data + [toolchain_file_target],
