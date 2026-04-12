@@ -132,12 +132,12 @@ for config in "${PLATFORM_CONFIGS[@]}"; do
     echo ""
     if [ -f "$STATIC_LIB_PATH" ]; then
         echo "  Path: $STATIC_LIB_PATH"
-        LIB_SIZE=$(stat -c%s "$STATIC_LIB_PATH" 2>/dev/null || echo "unknown")
-        echo "  Size: $LIB_SIZE bytes"
-        LIB_SYMBOLS=$(nm "$STATIC_LIB_PATH" 2>/dev/null | grep -E 'T.*calculate_sum|T.*get_greeting|T.*fibonacci' | wc -l || echo "0")
-        echo "  Exported Symbols: $LIB_SYMBOLS (calculate_sum, get_greeting, fibonacci)"
-        LIB_ARCH=$(file "$STATIC_LIB_PATH" | grep -oE 'x86-64|ARM aarch64' | head -1 || echo "unknown")
-        echo "  Architecture: $LIB_ARCH"
+        STATIC_LIB_SIZE=$(stat -c%s "$STATIC_LIB_PATH" 2>/dev/null || echo "unknown")
+        echo "  Size: $STATIC_LIB_SIZE bytes"
+        STATIC_LIB_SYMBOLS=$(nm "$STATIC_LIB_PATH" 2>/dev/null | grep -E 'T.*calculate_sum|T.*get_greeting|T.*fibonacci' | wc -l || echo "0")
+        echo "  Exported Symbols: $STATIC_LIB_SYMBOLS (calculate_sum, get_greeting, fibonacci)"
+        STATIC_LIB_ARCH=$(objdump -f "$STATIC_LIB_PATH" 2>/dev/null | grep "architecture:" | grep -oE 'x86-64|aarch64' | head -1 || echo "unknown")
+        echo "  Architecture: $STATIC_LIB_ARCH"
     else
         echo "  ERROR: Static library not found!"
         exit 1
@@ -151,12 +151,12 @@ for config in "${PLATFORM_CONFIGS[@]}"; do
     echo ""
     if [ -f "$SHARED_LIB_PATH" ]; then
         echo "  Path: $SHARED_LIB_PATH"
-        LIB_SIZE=$(stat -c%s "$SHARED_LIB_PATH" 2>/dev/null || echo "unknown")
-        echo "  Size: $LIB_SIZE bytes"
-        LIB_SYMBOLS=$(nm -D "$SHARED_LIB_PATH" 2>/dev/null | grep -E 'T.*calculate_sum|T.*get_greeting|T.*fibonacci' | wc -l || echo "0")
-        echo "  Exported Symbols: $LIB_SYMBOLS (calculate_sum, get_greeting, fibonacci)"
-        LIB_ARCH=$(file "$SHARED_LIB_PATH" | grep -oE 'x86-64|ARM aarch64' | head -1 || echo "unknown")
-        echo "  Architecture: $LIB_ARCH"
+        SHARED_LIB_SIZE=$(stat -c%s "$SHARED_LIB_PATH" 2>/dev/null || echo "unknown")
+        echo "  Size: $SHARED_LIB_SIZE bytes"
+        SHARED_LIB_SYMBOLS=$(nm -D "$SHARED_LIB_PATH" 2>/dev/null | grep -E 'T.*calculate_sum|T.*get_greeting|T.*fibonacci' | wc -l || echo "0")
+        echo "  Exported Symbols: $SHARED_LIB_SYMBOLS (calculate_sum, get_greeting, fibonacci)"
+        SHARED_LIB_ARCH=$(file "$SHARED_LIB_PATH" | grep -oE 'x86-64|ARM aarch64' | head -1 || echo "unknown")
+        echo "  Architecture: $SHARED_LIB_ARCH"
         SO_NEEDED=$(readelf -d "$SHARED_LIB_PATH" 2>/dev/null | grep NEEDED | grep -oE '\[.*\]' | tr '\n' ' ' || echo "none")
         echo "  Needed Libraries: $SO_NEEDED"
     else
@@ -240,13 +240,48 @@ for config in "${PLATFORM_CONFIGS[@]}"; do
     fi
     
     echo ""
-    if [ "$LIB_SYMBOLS" -ge 3 ]; then
-        echo "✓ Library symbols verification PASSED"
-        echo "  Found $LIB_SYMBOLS exported symbols"
+    if [[ $STATIC_LIB_ARCH == *"x86-64"* ]] && [[ $expected_arch == "x86_64" ]]; then
+        echo "✓ Static library architecture verification PASSED: x86_64"
+    elif [[ $STATIC_LIB_ARCH == *"aarch64"* ]] && [[ $expected_arch == "aarch64" ]]; then
+        echo "✓ Static library architecture verification PASSED: aarch64"
     else
-        echo "✗ Library symbols verification FAILED"
+        echo "✗ Static library architecture verification FAILED"
+        echo "  Expected: $expected_arch"
+        echo "  Found: $STATIC_LIB_ARCH"
+        exit 1
+    fi
+    
+    echo ""
+    if [[ $SHARED_LIB_ARCH == *"x86-64"* ]] && [[ $expected_arch == "x86_64" ]]; then
+        echo "✓ Shared library architecture verification PASSED: x86_64"
+    elif [[ $SHARED_LIB_ARCH == *"aarch64"* ]] && [[ $expected_arch == "aarch64" ]]; then
+        echo "✓ Shared library architecture verification PASSED: aarch64"
+    else
+        echo "✗ Shared library architecture verification FAILED"
+        echo "  Expected: $expected_arch"
+        echo "  Found: $SHARED_LIB_ARCH"
+        exit 1
+    fi
+    
+    echo ""
+    if [ "$STATIC_LIB_SYMBOLS" -ge 3 ]; then
+        echo "✓ Static library symbols verification PASSED"
+        echo "  Found $STATIC_LIB_SYMBOLS exported symbols"
+    else
+        echo "✗ Static library symbols verification FAILED"
         echo "  Expected: 3 or more exported symbols"
-        echo "  Found: $LIB_SYMBOLS"
+        echo "  Found: $STATIC_LIB_SYMBOLS"
+        exit 1
+    fi
+    
+    echo ""
+    if [ "$SHARED_LIB_SYMBOLS" -ge 3 ]; then
+        echo "✓ Shared library symbols verification PASSED"
+        echo "  Found $SHARED_LIB_SYMBOLS exported symbols"
+    else
+        echo "✗ Shared library symbols verification FAILED"
+        echo "  Expected: 3 or more exported symbols"
+        echo "  Found: $SHARED_LIB_SYMBOLS"
         exit 1
     fi
     
