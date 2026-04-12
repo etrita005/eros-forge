@@ -1,0 +1,2 @@
+# EROS Forge Test Project Configuration
+try-import %workspace%/../../bazel/bazelrc

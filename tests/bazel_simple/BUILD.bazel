@@ -1,0 +1,28 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "math_utils_static",
+    srcs = ["lib/math_utils.cpp"],
+    hdrs = ["lib/math_utils.h"],
+    copts = ["-std=c++20"],
+    linkstatic = True,
+)
+
+cc_library(
+    name = "math_utils_shared",
+    srcs = ["lib/math_utils.cpp"],
+    hdrs = ["lib/math_utils.h"],
+    copts = ["-std=c++20"],
+    linkstatic = False,
+    linkopts = ["-Wl,-soname,libmath_utils.so"],
+)
+
+cc_binary(
+    name = "hello",
+    srcs = ["main.cpp"],
+    copts = ["-std=c++20"],
+    deps = [":math_utils_static"],
+    linkstatic = True,
+)

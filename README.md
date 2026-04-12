@@ -167,18 +167,18 @@ aarch64-linux-gnu-g++ --version
 
 Forge 提供以下构建配置：
 
-| 配置 | 说明 | 宿主机 | 目标机 |
-|------|------|--------|--------|
-| `--config=linux_x86_64` | x86_64 原生编译 | x86_64 | x86_64 |
-| `--config=linux_arm64` | ARM64 原生编译 | arm64 | arm64 |
-| `--config=linux_x86_64_cross_arm64` | 交叉编译 | x86_64 | arm64 |
-| `--config=linux_arm64_cross_arm64` | 交叉编译（自定义 glibc） | arm64 | arm64 |
+| 配置                                  | 说明              | 宿主机     | 目标机     |
+| ----------------------------------- | --------------- | ------- | ------- |
+| `--config=linux_x86_64`             | x86\_64 原生编译    | x86\_64 | x86\_64 |
+| `--config=linux_arm64`              | ARM64 原生编译      | arm64   | arm64   |
+| `--config=linux_x86_64_cross_arm64` | 交叉编译            | x86\_64 | arm64   |
+| `--config=linux_arm64_cross_arm64`  | 交叉编译（自定义 glibc） | arm64   | arm64   |
 
 ### 构建模式
 
-| 模式 | 说明 | 优化级别 |
-|------|------|----------|
-| `--config=debug` | 调试模式 | 无优化，包含调试信息 |
+| 模式                 | 说明   | 优化级别          |
+| ------------------ | ---- | ------------- |
+| `--config=debug`   | 调试模式 | 无优化，包含调试信息    |
 | `--config=release` | 发布模式 | `-O3` 优化，符号分离 |
 
 ### 组合使用示例
@@ -220,17 +220,16 @@ bazel build //src:my_app --config=linux_x86_64_cross_arm64
 
 1. **动态链接器**：`/opt/eros/lib/ld-linux-aarch64.so.1`
    - 指定程序运行时使用的动态链接器路径
-
 2. **运行时库搜索路径（RUNPATH）**：`/opt/eros/lib`
    - 指定程序运行时搜索共享库的路径
    - 程序会自动在此路径下查找依赖的 `.so` 文件
-
 3. **必需的系统库**：
    - `-lstdc++`：C++ 标准库
    - `-lgcc`：GCC 运行时库
    - `-lm`：数学库
 
 这意味着：
+
 - 编译的程序会自动使用指定的动态链接器
 - 运行时会自动从 `/opt/eros/lib` 查找共享库
 - 无需手动指定 `LD_LIBRARY_PATH` 或使用 `patchelf`
@@ -261,6 +260,7 @@ readelf -d bazel-bin/my_app | grep -E "(RPATH|RUNPATH)"
 - 出现类似 `GLIBC_2.28 not found` 的错误
 
 通过使用自定义 glibc 并嵌入到程序中，可以确保：
+
 - 程序使用与目标机兼容的 glibc 版本
 - 无需在目标机上安装额外的库
 - 提高程序的可移植性和可靠性
@@ -269,7 +269,7 @@ readelf -d bazel-bin/my_app | grep -E "(RPATH|RUNPATH)"
 
 ### 1. 准备目标机环境
 
-**在目标机上创建 `/opt/eros/lib` 目录并复制必要的动态库**：
+**在目标机上创建** **`/opt/eros/lib`** **目录并复制必要的动态库**：
 
 交叉编译完成后，需要将以下动态库复制到目标机的 `/opt/eros/lib` 目录：
 
@@ -336,6 +336,7 @@ ssh user@target-board "chmod 755 /opt/eros/lib/*.so*"
 ```
 
 **注意**：
+
 - 库文件路径可能因发行版而异，请根据实际情况调整
 - 确保复制的库版本与目标机兼容
 - **libstdc++ 版本要求**：如果程序使用 C++20 特性，需要 libstdc++.so.6.0.30 或更高版本
@@ -373,6 +374,7 @@ LD_LIBRARY_PATH=/opt/eros/lib:$LD_LIBRARY_PATH ./my_app
 ```
 
 **注意**：
+
 - 由于程序已经嵌入了动态链接器和库搜索路径，无需额外配置即可运行
 - 使用 Sanitizer 的程序需要设置 `LD_LIBRARY_PATH=/opt/eros/lib` 以找到 sanitizer 动态库
 
@@ -426,10 +428,10 @@ bazel/toolchain/
 
 定义两个平台：
 
-- `linux_x86_64_platform`：x86_64 原生平台
+- `linux_x86_64_platform`：x86\_64 原生平台
 - `linux_arm64_platform`：ARM64 原生/交叉编译平台
 
-#### 2. 工具链配置（cc_toolchain_config.bzl）
+#### 2. 工具链配置（cc\_toolchain\_config.bzl）
 
 配置以下内容：
 
@@ -552,18 +554,19 @@ Forge 工具链内置了以下 Sanitizer 支持，用于检测内存错误和数
 **Debug 模式**：`--config=debug` 默认启用 **ASan + UBSan**
 
 这意味着：
+
 - 运行测试时自动检测内存错误和未定义行为
 - Debug 构建时自动启用 Sanitizer，无需额外参数
 
 ### 可用的 Sanitizer 配置
 
-| 配置 | Sanitizer | 检测内容 |
-|------|-----------|----------|
-| 默认 | ASan + UBSan | 内存错误 + 未定义行为 |
-| `--config=tsan_test` | ThreadSanitizer | 数据竞争、死锁（测试专用） |
-| `--config=tsan` | ThreadSanitizer | 数据竞争、死锁（构建专用） |
-| `--config=msan` | MemorySanitizer | 未初始化内存读取 |
-| `--config=no_sanitizer` | 无 | 禁用默认 Sanitizer |
+| 配置                      | Sanitizer       | 检测内容           |
+| ----------------------- | --------------- | -------------- |
+| 默认                      | ASan + UBSan    | 内存错误 + 未定义行为   |
+| `--config=tsan_test`    | ThreadSanitizer | 数据竞争、死锁（测试专用）  |
+| `--config=tsan`         | ThreadSanitizer | 数据竞争、死锁（构建专用）  |
+| `--config=msan`         | MemorySanitizer | 未初始化内存读取       |
+| `--config=no_sanitizer` | 无               | 禁用默认 Sanitizer |
 
 ### 使用示例
 
@@ -644,12 +647,12 @@ Forge 提供了 `cmake_forge` 宏，用于在 Bazel 中构建 CMake 项目，并
 
 ### 支持的配置
 
-| 配置 | CMake Toolchain 文件 | 说明 |
-|------|---------------------|------|
-| `--config=linux_x86_64` | `linux_x86_64.cmake` | x86_64 原生编译 |
-| `--config=linux_arm64` | `linux_arm64.cmake` | ARM64 原生编译 |
-| `--config=linux_x86_64_cross_arm64` | `linux_x86_64_cross_arm64.cmake` | x86_64 到 ARM64 交叉编译 |
-| `--config=linux_arm64_cross_arm64` | `linux_arm64_cross_arm64.cmake` | ARM64 到 ARM64 交叉编译 |
+| 配置                                  | CMake Toolchain 文件               | 说明                   |
+| ----------------------------------- | -------------------------------- | -------------------- |
+| `--config=linux_x86_64`             | `linux_x86_64.cmake`             | x86\_64 原生编译         |
+| `--config=linux_arm64`              | `linux_arm64.cmake`              | ARM64 原生编译           |
+| `--config=linux_x86_64_cross_arm64` | `linux_x86_64_cross_arm64.cmake` | x86\_64 到 ARM64 交叉编译 |
+| `--config=linux_arm64_cross_arm64`  | `linux_arm64_cross_arm64.cmake`  | ARM64 到 ARM64 交叉编译   |
 
 ### 使用方法
 
@@ -708,6 +711,7 @@ bazel/toolchain/cmake/
 ```
 
 每个 toolchain 文件定义了：
+
 - `CMAKE_SYSTEM_NAME` 和 `CMAKE_SYSTEM_PROCESSOR`：目标系统信息
 - `CMAKE_C_COMPILER` 和 `CMAKE_CXX_COMPILER`：编译器路径
 - `CMAKE_ASM_COMPILER`：汇编器配置
@@ -732,4 +736,5 @@ bazel/toolchain/cmake/
 - [Bazel C++ Toolchain 配置](https://bazel.build/extending/cc-toolchain)
 - [GCC 交叉编译指南](https://gcc.gnu.org/onlinedocs/gccint/Configure-Terms.html)
 - [Glibc 交叉编译](https://sourceware.org/glibc/wiki/Testing/Builds)
-- [rules_foreign_cc 文档](https://github.com/bazelbuild/rules_foreign_cc)
+- [rules\_foreign\_cc 文档](https://github.com/bazelbuild/rules_foreign_cc)
+
