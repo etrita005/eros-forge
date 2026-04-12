@@ -40,6 +40,27 @@ declare -A RPATH_MAP=(
     ["linux_arm64_cross_arm64"]="/opt/eros/lib"
 )
 
+declare -A OBJDUMP_MAP=(
+    ["linux_x86_64"]="objdump"
+    ["linux_arm64"]="objdump"
+    ["linux_x86_64_cross_arm64"]="aarch64-linux-gnu-objdump"
+    ["linux_arm64_cross_arm64"]="aarch64-linux-gnu-objdump"
+)
+
+declare -A NM_MAP=(
+    ["linux_x86_64"]="nm"
+    ["linux_arm64"]="nm"
+    ["linux_x86_64_cross_arm64"]="aarch64-linux-gnu-nm"
+    ["linux_arm64_cross_arm64"]="aarch64-linux-gnu-nm"
+)
+
+declare -A READELF_MAP=(
+    ["linux_x86_64"]="readelf"
+    ["linux_arm64"]="readelf"
+    ["linux_x86_64_cross_arm64"]="aarch64-linux-gnu-readelf"
+    ["linux_arm64_cross_arm64"]="aarch64-linux-gnu-readelf"
+)
+
 if [ $# -gt 0 ]; then
     PLATFORM_CONFIGS=("$@")
 fi
@@ -94,29 +115,45 @@ for config in "${PLATFORM_CONFIGS[@]}"; do
     
     echo ""
     echo "[Linker Flags from Build Log]"
-    DYNAMIC_LINKER_FLAG=$(grep -oE '\-\-dynamic-linker=[^ ]+' "$BUILD_LOG" | head -1 || echo "none")
-    echo "  Dynamic Linker Flag: $DYNAMIC_LINKER_FLAG"
-    
-    RPATH_FLAG=$(grep -oE '\-Wl,-rpath[^ ]*|\-\-rpath=[^ ]+' "$BUILD_LOG" | head -1 || echo "none")
-    echo "  RPATH Flag: $RPATH_FLAG"
-    
-    LIBS=$(grep -oE '\-l[a-zA-Z0-9_]+' "$BUILD_LOG" | sort -u | head -5 | tr '\n' ' ' || echo "none")
-    echo "  Libraries: $LIBS"
+    PARAMS_FILE=$(grep -oE 'bazel-out/[a-zA-Z0-9_/.-]+\.params' "$BUILD_LOG" | grep hello | head -1 || echo "")
+    if [ -n "$PARAMS_FILE" ] && [ -f "$PARAMS_FILE" ]; then
+        DYNAMIC_LINKER_FLAG=$(grep -E '\-\-dynamic-linker=' "$PARAMS_FILE" | head -1 || echo "")
+        echo "  Dynamic Linker Flag: $DYNAMIC_LINKER_FLAG"
+        
+        RPATH_FLAG=$(grep -E '\-\-rpath=' "$PARAMS_FILE" | head -1 || echo "")
+        echo "  RPATH Flag: $RPATH_FLAG"
+        
+        LIBS=$(grep -E '^\-l' "$PARAMS_FILE" | sort -u | head -5 | tr '\n' ' ' || echo "none")
+        echo "  Libraries: $LIBS"
+    else
+        DYNAMIC_LINKER_FLAG=$(grep -oE '\-\-dynamic-linker=[^ ]+' "$BUILD_LOG" | head -1 || echo "")
+        echo "  Dynamic Linker Flag: $DYNAMIC_LINKER_FLAG"
+        
+        RPATH_FLAG=$(grep -oE '\-Wl,-rpath[^ ]*|\-\-rpath=[^ ]+' "$BUILD_LOG" | head -1 || echo "")
+        echo "  RPATH Flag: $RPATH_FLAG"
+        
+        LIBS=$(grep -oE '\-l[a-zA-Z0-9_]+' "$BUILD_LOG" | sort -u | head -5 | tr '\n' ' ' || echo "none")
+        echo "  Libraries: $LIBS"
+    fi
     
     echo ""
     echo "========================================="
     echo "Binary (hello) Verification"
     echo "========================================="
     
+    OBJDUMP_TOOL="${OBJDUMP_MAP[$config]}"
+    NM_TOOL="${NM_MAP[$config]}"
+    READELF_TOOL="${READELF_MAP[$config]}"
+    
     echo ""
     echo "[Linker Information]"
-    LINKER=$(readelf -p .interp "$BINARY_PATH" 2>/dev/null | grep -oE '/[a-zA-Z0-9_/.-]+' || echo "unknown")
+    LINKER=$($READELF_TOOL -p .interp "$BINARY_PATH" 2>/dev/null | grep -oE '/[a-zA-Z0-9_/.-]+' || echo "unknown")
     echo "  Dynamic Linker: $LINKER"
     
-    RPATH=$(readelf -d "$BINARY_PATH" 2>/dev/null | grep -E 'RPATH|RUNPATH' | grep -oE '/[a-zA-Z0-9_/.-]+' || echo "none")
+    RPATH=$($READELF_TOOL -d "$BINARY_PATH" 2>/dev/null | grep -E 'RPATH|RUNPATH' | grep -oE '/[a-zA-Z0-9_/.-]+' || echo "none")
     echo "  RPATH/RUNPATH: $RPATH"
     
-    NEEDED_LIBS=$(readelf -d "$BINARY_PATH" 2>/dev/null | grep NEEDED | grep -oE '\[.*\]' | tr '\n' ' ' || echo "none")
+    NEEDED_LIBS=$($READELF_TOOL -d "$BINARY_PATH" 2>/dev/null | grep NEEDED | grep -oE '\[.*\]' | tr '\n' ' ' || echo "none")
     echo "  Needed Libraries: $NEEDED_LIBS"
     
     echo ""
@@ -134,9 +171,9 @@ for config in "${PLATFORM_CONFIGS[@]}"; do
         echo "  Path: $STATIC_LIB_PATH"
         STATIC_LIB_SIZE=$(stat -c%s "$STATIC_LIB_PATH" 2>/dev/null || echo "unknown")
         echo "  Size: $STATIC_LIB_SIZE bytes"
-        STATIC_LIB_SYMBOLS=$(nm "$STATIC_LIB_PATH" 2>/dev/null | grep -E 'T.*calculate_sum|T.*get_greeting|T.*fibonacci' | wc -l || echo "0")
+        STATIC_LIB_SYMBOLS=$($NM_TOOL "$STATIC_LIB_PATH" 2>/dev/null | grep -E 'T.*calculate_sum|T.*get_greeting|T.*fibonacci' | wc -l || echo "0")
         echo "  Exported Symbols: $STATIC_LIB_SYMBOLS (calculate_sum, get_greeting, fibonacci)"
-        STATIC_LIB_ARCH=$(objdump -f "$STATIC_LIB_PATH" 2>/dev/null | grep "architecture:" | grep -oE 'x86-64|aarch64' | head -1 || echo "unknown")
+        STATIC_LIB_ARCH=$($OBJDUMP_TOOL -f "$STATIC_LIB_PATH" 2>/dev/null | grep "architecture:" | grep -oE 'x86-64|aarch64' | head -1 || echo "unknown")
         echo "  Architecture: $STATIC_LIB_ARCH"
     else
         echo "  ERROR: Static library not found!"
@@ -153,11 +190,11 @@ for config in "${PLATFORM_CONFIGS[@]}"; do
         echo "  Path: $SHARED_LIB_PATH"
         SHARED_LIB_SIZE=$(stat -c%s "$SHARED_LIB_PATH" 2>/dev/null || echo "unknown")
         echo "  Size: $SHARED_LIB_SIZE bytes"
-        SHARED_LIB_SYMBOLS=$(nm -D "$SHARED_LIB_PATH" 2>/dev/null | grep -E 'T.*calculate_sum|T.*get_greeting|T.*fibonacci' | wc -l || echo "0")
+        SHARED_LIB_SYMBOLS=$($NM_TOOL -D "$SHARED_LIB_PATH" 2>/dev/null | grep -E 'T.*calculate_sum|T.*get_greeting|T.*fibonacci' | wc -l || echo "0")
         echo "  Exported Symbols: $SHARED_LIB_SYMBOLS (calculate_sum, get_greeting, fibonacci)"
         SHARED_LIB_ARCH=$(file "$SHARED_LIB_PATH" | grep -oE 'x86-64|ARM aarch64' | head -1 || echo "unknown")
         echo "  Architecture: $SHARED_LIB_ARCH"
-        SO_NEEDED=$(readelf -d "$SHARED_LIB_PATH" 2>/dev/null | grep NEEDED | grep -oE '\[.*\]' | tr '\n' ' ' || echo "none")
+        SO_NEEDED=$($READELF_TOOL -d "$SHARED_LIB_PATH" 2>/dev/null | grep NEEDED | grep -oE '\[.*\]' | tr '\n' ' ' || echo "none")
         echo "  Needed Libraries: $SO_NEEDED"
     else
         echo "  ERROR: Shared library not found!"

@@ -226,6 +226,22 @@ def _impl(ctx):
             )
         )
 
+    if ctx.attr.extra_compile_flags:
+        features.append(
+            feature(
+                name = "extra_compile_flags",
+                enabled = True,
+                flag_sets = [
+                    flag_set(
+                        actions = all_compile_actions,
+                        flag_groups = [
+                            flag_group(flags = ctx.attr.extra_compile_flags),
+                        ],
+                    ),
+                ],
+            )
+        )
+
     return cc_common.create_cc_toolchain_config_info(
         ctx = ctx,
         features = features,
@@ -237,6 +253,7 @@ def _impl(ctx):
             tool_path(name = "g++", path = ctx.attr.gxx_path),
             tool_path(name = "ld", path = ctx.attr.ld_path),
             tool_path(name = "ar", path = ctx.attr.ar_path),
+            tool_path(name = "as", path = ctx.attr.as_path),
             tool_path(name = "cpp", path = ctx.attr.cpp_path),
             tool_path(name = "gcov", path = ctx.attr.gcov_path),
             tool_path(name = "nm", path = ctx.attr.nm_path),
@@ -269,6 +286,7 @@ cc_toolchain_config = rule(
         "gxx_path": attr.string(mandatory = True),
         "ld_path": attr.string(mandatory = True),
         "ar_path": attr.string(mandatory = True),
+        "as_path": attr.string(mandatory = True),
         "cpp_path": attr.string(mandatory = True),
         "gcov_path": attr.string(mandatory = True),
         "nm_path": attr.string(mandatory = True),
@@ -277,6 +295,7 @@ cc_toolchain_config = rule(
         "objcopy_path": attr.string(mandatory = True),
         "cxx_builtin_include_directories": attr.string_list(mandatory = True),
         "sysroot": attr.string(default = ""),
+        "extra_compile_flags": attr.string_list(default = []),
         "extra_link_flags": attr.string_list(default = []),
     },
     provides = [CcToolchainConfigInfo],
