@@ -2,7 +2,7 @@ load("@eros_forge//bazel:cmake_forge.bzl", "cmake_forge")
 
 filegroup(
     name = "src_files",
-    srcs = glob(["*.cpp", "CMakeLists.txt"]),
+    srcs = glob(["*.cpp", "lib/*.cpp", "lib/*.h", "CMakeLists.txt"]),
     visibility = ["//visibility:private"],
 )
 
