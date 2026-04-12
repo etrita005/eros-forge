@@ -222,6 +222,29 @@ for config in "${PLATFORM_CONFIGS[@]}"; do
             echo "  Found: $RPATH"
             exit 1
         fi
+        
+        echo ""
+        echo "Cross-compilation link flags verification:"
+        if [[ $DYNAMIC_LINKER_FLAG == *"/opt/eros/lib/ld-linux-aarch64.so.1"* ]]; then
+            echo "✓ Dynamic linker flag in build log PASSED"
+            echo "  Found: $DYNAMIC_LINKER_FLAG"
+        else
+            echo "✗ Dynamic linker flag in build log FAILED"
+            echo "  Expected: --dynamic-linker=/opt/eros/lib/ld-linux-aarch64.so.1"
+            echo "  Found: $DYNAMIC_LINKER_FLAG"
+            exit 1
+        fi
+        
+        echo ""
+        if [[ $RPATH_FLAG == *"/opt/eros/lib"* ]]; then
+            echo "✓ RPATH flag in build log PASSED"
+            echo "  Found: $RPATH_FLAG"
+        else
+            echo "✗ RPATH flag in build log FAILED"
+            echo "  Expected: --rpath=/opt/eros/lib"
+            echo "  Found: $RPATH_FLAG"
+            exit 1
+        fi
     else
         echo "  RPATH verification SKIPPED (not required for this config)"
     fi
