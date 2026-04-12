@@ -27,7 +27,7 @@ declare -A COMPILER_MAP=(
 )
 
 declare -A DYNAMIC_LINKER_MAP=(
-    ["linux_x86_64"]="/lib/ld-linux-x86-64.so.2"
+    ["linux_x86_64"]="/lib64/ld-linux-x86-64.so.2"
     ["linux_arm64"]="/lib/ld-linux-aarch64.so.1"
     ["linux_x86_64_cross_arm64"]="/opt/eros/lib/ld-linux-aarch64.so.1"
     ["linux_arm64_cross_arm64"]="/opt/eros/lib/ld-linux-aarch64.so.1"
@@ -88,6 +88,20 @@ for config in "${PLATFORM_CONFIGS[@]}"; do
     
     DEFINES=$(grep -oE '\-D[A-Z_]+' "$BUILD_LOG" | sort -u | head -5 | tr '\n' ' ' || echo "none")
     echo "  Defines: $DEFINES"
+    
+    WARNINGS=$(grep -oE '\-W[a-zA-Z0-9_-]+' "$BUILD_LOG" | sort -u | head -5 | tr '\n' ' ' || echo "none")
+    echo "  Warnings: $WARNINGS"
+    
+    echo ""
+    echo "[Linker Flags from Build Log]"
+    DYNAMIC_LINKER_FLAG=$(grep -oE '\-\-dynamic-linker=[^ ]+' "$BUILD_LOG" | head -1 || echo "none")
+    echo "  Dynamic Linker Flag: $DYNAMIC_LINKER_FLAG"
+    
+    RPATH_FLAG=$(grep -oE '\-Wl,-rpath[^ ]*|\-\-rpath=[^ ]+' "$BUILD_LOG" | head -1 || echo "none")
+    echo "  RPATH Flag: $RPATH_FLAG"
+    
+    LIBS=$(grep -oE '\-l[a-zA-Z0-9_]+' "$BUILD_LOG" | sort -u | head -5 | tr '\n' ' ' || echo "none")
+    echo "  Libraries: $LIBS"
     
     echo ""
     echo "========================================="
