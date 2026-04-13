@@ -5,6 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 TEST_UTILS="$SCRIPT_DIR/../../test_utils.py"
 
+PLATFORM_CONFIG="${1:-linux_x86_64}"
+
 BUILD_MODES=(
     "debug"
     "release"
@@ -20,6 +22,11 @@ declare -A DEFINE_MAP=(
     ["release"]="NDEBUG"
 )
 
+echo "========================================="
+echo "Testing Build Modes for Platform: $PLATFORM_CONFIG"
+echo "========================================="
+echo ""
+
 for mode in "${BUILD_MODES[@]}"; do
     echo "========================================="
     echo "Testing build mode: $mode"
@@ -29,9 +36,9 @@ for mode in "${BUILD_MODES[@]}"; do
     bazel clean
     
     echo ""
-    echo "Building with mode: $mode"
+    echo "Building with platform: $PLATFORM_CONFIG, mode: $mode"
     BUILD_LOG=$(mktemp)
-    bazel build //:hello --config=linux_x86_64 --config=$mode --subcommands 2>&1 | tee "$BUILD_LOG"
+    bazel build //:hello --config=$PLATFORM_CONFIG --config=$mode --subcommands 2>&1 | tee "$BUILD_LOG"
     
     sync
     
@@ -184,9 +191,17 @@ for mode in "${BUILD_MODES[@]}"; do
             echo "  Mode: $mode (release)"
             echo "  Found: ${DEFINES:-NDEBUG (CMake default)}"
         else
-            echo "⚠ Define verification WARNING"
-            echo "  Mode: $mode"
-            echo "  Found: $DEFINES"
+            CMAKE_BUILD_TYPE=$(grep -E "CMAKE_BUILD_TYPE" "$CMAKE_LOG" 2>/dev/null | grep -oE "Release|Debug" | head -1 || echo "")
+            if [[ "$CMAKE_BUILD_TYPE" == "Release" ]]; then
+                echo "✓ Define verification PASSED"
+                echo "  Mode: $mode (release)"
+                echo "  CMAKE_BUILD_TYPE=Release (NDEBUG defined by CMake)"
+            else
+                echo "⚠ Define verification WARNING"
+                echo "  Mode: $mode"
+                echo "  Found: $DEFINES"
+                echo "  Note: CMake automatically defines NDEBUG in Release mode"
+            fi
         fi
     else
         echo "✓ Define verification PASSED"
@@ -210,9 +225,14 @@ for mode in "${BUILD_MODES[@]}"; do
     fi
     
     echo ""
-    if [ "$mode" == "debug" ]; then
+    if [[ $PLATFORM_CONFIG == *"cross"* ]]; then
+        echo "✓ Binary execution SKIPPED (cross-compiled binary)"
+    elif [ "$mode" == "debug" ]; then
         if [[ $NEEDED_LIBS == *"libasan"* ]]; then
-            ASAN_PATH="/usr/lib/x86_64-linux-gnu/libasan.so.8"
+            ASAN_PATH="/usr/lib/aarch64-linux-gnu/libasan.so.8"
+            if [ ! -f "$ASAN_PATH" ]; then
+                ASAN_PATH="/usr/lib/x86_64-linux-gnu/libasan.so.8"
+            fi
             if [ ! -f "$ASAN_PATH" ]; then
                 ASAN_PATH=$(find /usr/lib -name "libasan.so*" 2>/dev/null | head -1)
             fi
@@ -257,5 +277,5 @@ for mode in "${BUILD_MODES[@]}"; do
 done
 
 echo "========================================="
-echo "All build mode tests PASSED!"
+echo "All build mode tests PASSED for platform: $PLATFORM_CONFIG"
 echo "========================================="
