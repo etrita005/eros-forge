@@ -36,5 +36,5 @@ set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 
 # Additional linker flags
-set(CMAKE_EXE_LINKER_FLAGS "-L/usr/lib/gcc/aarch64-linux-gnu/13 -L/usr/aarch64-linux-gnu/lib -L/usr/lib/aarch64-linux-gnu -lstdc++ -lgcc -lm -Wl,--rpath=/opt/eros/lib -Wl,--dynamic-linker=/opt/eros/lib/ld-linux-aarch64.so.1")
-set(CMAKE_SHARED_LINKER_FLAGS "-L/usr/lib/gcc/aarch64-linux-gnu/13 -L/usr/aarch64-linux-gnu/lib -L/usr/lib/aarch64-linux-gnu -lstdc++ -lgcc -lm")
+set(CMAKE_EXE_LINKER_FLAGS "-L/usr/lib/gcc-cross/aarch64-linux-gnu/13 -L/usr/aarch64-linux-gnu/lib -L/usr/lib/aarch64-linux-gnu -lstdc++ -lgcc -lm -Wl,--rpath=/opt/eros/lib -Wl,--dynamic-linker=/opt/eros/lib/ld-linux-aarch64.so.1")
+set(CMAKE_SHARED_LINKER_FLAGS "-L/usr/lib/gcc-cross/aarch64-linux-gnu/13 -L/usr/aarch64-linux-gnu/lib -L/usr/lib/aarch64-linux-gnu -lstdc++ -lgcc -lm")
