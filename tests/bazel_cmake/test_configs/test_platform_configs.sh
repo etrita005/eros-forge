@@ -100,8 +100,8 @@ for config in "${PLATFORM_CONFIGS[@]}"; do
         CMAKE_LOG=$(find ~/.cache/bazel -path "*_hello*_foreign_cc/CMake.log" -type f -mmin -5 2>/dev/null | head -n1)
     fi
     
-    STATIC_LIB_PATH=$(find bazel-bin -name "libmath_utils_static.a" -type f 2>/dev/null | head -n1)
-    SHARED_LIB_PATH=$(find bazel-bin -name "libmath_utils_shared.so" -type f 2>/dev/null | head -n1)
+    STATIC_LIB_PATH=$(find -L bazel-bin -name "libmath_utils_static.a" -type f 2>/dev/null | head -n1)
+    SHARED_LIB_PATH=$(find -L bazel-bin -name "libmath_utils_shared.so" -type f 2>/dev/null | head -n1)
     
     echo ""
     echo "========================================="
@@ -249,7 +249,7 @@ for config in "${PLATFORM_CONFIGS[@]}"; do
         echo "  Size: $SHARED_LIB_SIZE bytes"
         SHARED_LIB_SYMBOLS=$($NM_TOOL -D "$SHARED_LIB_PATH" 2>/dev/null | grep -E 'T.*calculate_sum|T.*get_greeting|T.*fibonacci' | wc -l || echo "0")
         echo "  Exported Symbols: $SHARED_LIB_SYMBOLS (calculate_sum, get_greeting, fibonacci)"
-        SHARED_LIB_ARCH=$(file "$SHARED_LIB_PATH" | grep -oE 'x86-64|ARM aarch64' | head -1 || echo "unknown")
+        SHARED_LIB_ARCH=$(file -L "$SHARED_LIB_PATH" | grep -oE 'x86-64|ARM aarch64' | head -1 || echo "unknown")
         echo "  Architecture: $SHARED_LIB_ARCH"
         SO_NEEDED=$($READELF_TOOL -d "$SHARED_LIB_PATH" 2>/dev/null | grep NEEDED | grep -oE '\[.*\]' | tr '\n' ' ' || echo "none")
         echo "  Needed Libraries: $SO_NEEDED"

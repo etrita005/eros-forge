@@ -13,4 +13,6 @@ target_include_directories(math_utils_shared PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 add_executable(hello_cmake main.cpp)
 target_link_libraries(hello_cmake PRIVATE math_utils_static)
 
-install(TARGETS hello_cmake math_utils_static math_utils_shared DESTINATION bin)
+install(TARGETS hello_cmake DESTINATION bin)
+install(TARGETS math_utils_static DESTINATION lib)
+install(TARGETS math_utils_shared DESTINATION lib)

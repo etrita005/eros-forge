@@ -10,5 +10,7 @@ cmake_forge(
     name = "hello",
     lib_source = ":src_files",
     out_binaries = ["hello_cmake"],
+    out_static_libs = ["libmath_utils_static.a"],
+    out_shared_libs = ["libmath_utils_shared.so"],
     visibility = ["//visibility:public"],
 )
