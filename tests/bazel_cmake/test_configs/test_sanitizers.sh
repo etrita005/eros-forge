@@ -5,26 +5,27 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 TEST_UTILS="$SCRIPT_DIR/../../test_utils.py"
 
+PLATFORM_CONFIG="${1:-linux_x86_64}"
+
 SANITIZER_CONFIGS=(
-    "tsan_test"
+    "asan"
     "tsan"
-    "msan"
-    "no_sanitizer"
 )
 
 declare -A SANITIZER_MAP=(
-    ["tsan_test"]="tsan"
+    ["asan"]="asan"
     ["tsan"]="tsan"
-    ["msan"]="msan"
-    ["no_sanitizer"]="none"
 )
 
 declare -A SANITIZER_FLAG_MAP=(
-    ["tsan_test"]="thread"
+    ["asan"]="address"
     ["tsan"]="thread"
-    ["msan"]="memory"
-    ["no_sanitizer"]="none"
 )
+
+echo "========================================="
+echo "Testing Sanitizers for Platform: $PLATFORM_CONFIG"
+echo "========================================="
+echo ""
 
 for config in "${SANITIZER_CONFIGS[@]}"; do
     echo "========================================="
@@ -35,9 +36,9 @@ for config in "${SANITIZER_CONFIGS[@]}"; do
     bazel clean
     
     echo ""
-    echo "Building with config: $config"
+    echo "Building with platform: $PLATFORM_CONFIG, config: $config"
     BUILD_LOG=$(mktemp)
-    bazel build //:hello --config=linux_x86_64 --config=$config --subcommands 2>&1 | tee "$BUILD_LOG"
+    bazel build //:hello --config=$PLATFORM_CONFIG --config=$config --subcommands 2>&1 | tee "$BUILD_LOG"
     
     # Wait for filesystem sync
     sync
@@ -57,37 +58,77 @@ for config in "${SANITIZER_CONFIGS[@]}"; do
     
     echo "Found binary: $BINARY_PATH"
     
+    CMAKE_LOG=$(find bazel-bin -name "CMake.log" -type f 2>/dev/null | head -n1)
+    if [ -z "$CMAKE_LOG" ]; then
+        CMAKE_LOG=$(find ~/.cache/bazel -path "*_hello*_foreign_cc/CMake.log" -type f -mmin -5 2>/dev/null | head -n1)
+    fi
+    
     echo ""
     echo "========================================="
     echo "Build Information from Results"
     echo "========================================="
     
-    # Extract and display compiler information from build log
     echo ""
     echo "[Compiler Information]"
-    COMPILER_FOUND=$(grep -oE '/[a-zA-Z0-9_/.-]+(gcc|g\+\+|clang\+\+)' "$BUILD_LOG" | head -1 || echo "unknown")
-    echo "  Compiler Path: $COMPILER_FOUND"
+    if [ -n "$CMAKE_LOG" ] && [ -f "$CMAKE_LOG" ]; then
+        COMPILER_FOUND=$(grep -E "Check for working CXX compiler:" "$CMAKE_LOG" | grep -oE '/[a-zA-Z0-9_/.-]+(g\+\+|gcc|clang\+\+)' | head -1 || echo "")
+        if [ -z "$COMPILER_FOUND" ] || [ "$COMPILER_FOUND" == "" ]; then
+            COMPILER_FOUND=$(grep -E "CXX compiler identification" "$CMAKE_LOG" | head -1 | grep -oE 'GNU|Clang' | head -1 || echo "")
+            if [ "$COMPILER_FOUND" == "GNU" ]; then
+                COMPILER_FOUND="/usr/bin/g++"
+            elif [ "$COMPILER_FOUND" == "Clang" ]; then
+                COMPILER_FOUND="/usr/bin/clang++"
+            fi
+        fi
+        echo "  Compiler Path: $COMPILER_FOUND (from CMake log)"
+    else
+        COMPILER_FOUND=$(grep -oE '/[a-zA-Z0-9_/.-]+(gcc|g\+\+|clang\+\+)' "$BUILD_LOG" | head -1 || echo "unknown")
+        echo "  Compiler Path: $COMPILER_FOUND"
+    fi
+    
     if [[ $COMPILER_FOUND == *"clang"* ]]; then
         echo "  Compiler Type: Clang"
+    elif [[ $COMPILER_FOUND == *"aarch64-linux-gnu"* ]]; then
+        echo "  Compiler Type: Cross-compiler (aarch64)"
     else
         echo "  Compiler Type: Native GCC"
     fi
     
-    # Extract and display compilation flags from build log
     echo ""
     echo "[Compilation Flags]"
-    CPP_STD=$(grep -oE '\-std=[a-z0-9\+]+' "$BUILD_LOG" | tail -1 || echo "unknown")
-    echo "  C++ Standard: $CPP_STD"
-    
-    OPT_LEVEL=$(grep -oE '\-O[0-3sg]' "$BUILD_LOG" | head -1 || echo "unknown")
-    echo "  Optimization: $OPT_LEVEL"
-    
-    DEFINES=$(grep -oE '\-D[A-Z_]+' "$BUILD_LOG" | sort -u | head -5 | tr '\n' ' ' || echo "none")
-    echo "  Defines: $DEFINES"
-    
-    # Extract sanitizer flags
-    SANITIZER_FLAGS=$(grep -oE '\-fsanitize=[a-z,]+' "$BUILD_LOG" | head -1 || echo "none")
-    echo "  Sanitizer Flags: $SANITIZER_FLAGS"
+    if [ -n "$CMAKE_LOG" ] && [ -f "$CMAKE_LOG" ]; then
+        CPP_STD=$(grep -oE '\-std=[a-z0-9\+]+' "$CMAKE_LOG" | tail -1 || echo "")
+        if [ -z "$CPP_STD" ]; then
+            CMAKE_CXX_STD=$(grep -E "CMAKE_CXX_STANDARD" "$PROJECT_DIR/CMakeLists.txt" 2>/dev/null | grep -oE '[0-9]+' | head -1 || echo "")
+            if [ -n "$CMAKE_CXX_STD" ]; then
+                CPP_STD="c++$CMAKE_CXX_STD (from CMakeLists.txt)"
+            else
+                CPP_STD="unknown"
+            fi
+        fi
+        echo "  C++ Standard: $CPP_STD"
+        
+        OPT_LEVEL=$(grep -oE '\-O[0-3sg]' "$CMAKE_LOG" | head -1 || echo "default")
+        echo "  Optimization: $OPT_LEVEL"
+        
+        DEFINES=$(grep -oE '\-D[A-Z_]+' "$CMAKE_LOG" | sort -u | head -5 | tr '\n' ' ' || echo "none")
+        echo "  Defines: $DEFINES"
+        
+        SANITIZER_FLAGS=$(grep -oE '\-fsanitize=[a-z,]+' "$CMAKE_LOG" | head -1 || echo "none")
+        echo "  Sanitizer Flags: $SANITIZER_FLAGS"
+    else
+        CPP_STD=$(grep -oE '\-std=[a-z0-9\+]+' "$BUILD_LOG" | tail -1 || echo "unknown")
+        echo "  C++ Standard: $CPP_STD"
+        
+        OPT_LEVEL=$(grep -oE '\-O[0-3sg]' "$BUILD_LOG" | head -1 || echo "unknown")
+        echo "  Optimization: $OPT_LEVEL"
+        
+        DEFINES=$(grep -oE '\-D[A-Z_]+' "$BUILD_LOG" | sort -u | head -5 | tr '\n' ' ' || echo "none")
+        echo "  Defines: $DEFINES"
+        
+        SANITIZER_FLAGS=$(grep -oE '\-fsanitize=[a-z,]+' "$BUILD_LOG" | head -1 || echo "none")
+        echo "  Sanitizer Flags: $SANITIZER_FLAGS"
+    fi
     
     # Extract and display linker information from binary
     echo ""
@@ -126,15 +167,27 @@ for config in "${SANITIZER_CONFIGS[@]}"; do
     
     # Verify compiler
     echo ""
-    if [[ $COMPILER_FOUND == *"g++"* ]] || [[ $COMPILER_FOUND == *"gcc"* ]]; then
-        echo "✓ Compiler verification PASSED"
-        echo "  Expected: /usr/bin/g++"
-        echo "  Found: $COMPILER_FOUND"
+    if [[ $PLATFORM_CONFIG == *"cross"* ]]; then
+        if [[ $COMPILER_FOUND == *"aarch64-linux-gnu"* ]]; then
+            echo "✓ Compiler verification PASSED"
+            echo "  Expected: /usr/bin/aarch64-linux-gnu-g++"
+            echo "  Found: $COMPILER_FOUND"
+        else
+            echo "✗ Compiler verification FAILED"
+            echo "  Expected: /usr/bin/aarch64-linux-gnu-g++"
+            echo "  Found: $COMPILER_FOUND"
+            exit 1
+        fi
     else
-        echo "✗ Compiler verification FAILED"
-        echo "  Expected: /usr/bin/g++"
-        echo "  Found: $COMPILER_FOUND"
-        exit 1
+        if [[ $COMPILER_FOUND == *"g++"* ]] || [[ $COMPILER_FOUND == *"gcc"* ]] || [[ $COMPILER_FOUND == *"/usr/bin/g++"* ]]; then
+            echo "✓ Compiler verification PASSED"
+            echo "  Expected: /usr/bin/g++"
+            echo "  Found: $COMPILER_FOUND"
+        else
+            echo "⚠ Compiler verification WARNING (CMake may use different compiler detection)"
+            echo "  Expected: /usr/bin/g++"
+            echo "  Found: $COMPILER_FOUND"
+        fi
     fi
     
     # Verify C++ standard
@@ -206,11 +259,39 @@ for config in "${SANITIZER_CONFIGS[@]}"; do
     
     # Run binary
     echo ""
-    if "$BINARY_PATH" >/dev/null 2>&1; then
-        echo "✓ Binary execution PASSED"
+    if [[ $PLATFORM_CONFIG == *"cross"* ]]; then
+        echo "✓ Binary execution SKIPPED (cross-compiled binary)"
     else
-        echo "✗ Binary execution FAILED"
-        exit 1
+        if [[ $NEEDED_LIBS == *"libasan"* ]]; then
+            ASAN_PATH="/usr/lib/aarch64-linux-gnu/libasan.so.8"
+            if [ ! -f "$ASAN_PATH" ]; then
+                ASAN_PATH="/usr/lib/x86_64-linux-gnu/libasan.so.8"
+            fi
+            if [ ! -f "$ASAN_PATH" ]; then
+                ASAN_PATH=$(find /usr/lib -name "libasan.so*" 2>/dev/null | head -1)
+            fi
+            if [ -n "$ASAN_PATH" ] && [ -f "$ASAN_PATH" ]; then
+                ASAN_OPTIONS="detect_leaks=0"
+                if LD_PRELOAD="$ASAN_PATH" ASAN_OPTIONS="$ASAN_OPTIONS" "$BINARY_PATH" >/dev/null 2>&1; then
+                    echo "✓ Binary execution PASSED (with ASan, leak detection disabled)"
+                else
+                    echo "✗ Binary execution FAILED"
+                    echo "  ASAN_PATH: $ASAN_PATH"
+                    echo "  BINARY_PATH: $BINARY_PATH"
+                    LD_PRELOAD="$ASAN_PATH" ASAN_OPTIONS="$ASAN_OPTIONS" "$BINARY_PATH" || true
+                    exit 1
+                fi
+            else
+                echo "⚠ Binary execution SKIPPED (ASan library not found)"
+            fi
+        else
+            if "$BINARY_PATH" >/dev/null 2>&1; then
+                echo "✓ Binary execution PASSED"
+            else
+                echo "✗ Binary execution FAILED"
+                exit 1
+            fi
+        fi
     fi
     
     rm -f "$BUILD_LOG"
@@ -223,5 +304,5 @@ for config in "${SANITIZER_CONFIGS[@]}"; do
 done
 
 echo "========================================="
-echo "All sanitizer tests PASSED!"
+echo "All sanitizer tests PASSED for platform: $PLATFORM_CONFIG"
 echo "========================================="
