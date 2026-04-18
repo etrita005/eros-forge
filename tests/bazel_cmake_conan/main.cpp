@@ -1,16 +1,20 @@
 #include <iostream>
 #include <fmt/core.h>
+#include "mylib.h"
 
 int main() {
     std::string message = "Hello from EROS Forge Bazel + CMake + Conan Test!";
     fmt::print("{}\n", message);
     
-    int result = 0;
-    for (int i = 1; i <= 5; ++i) {
-        result += i * i * i;
-    }
+    int64_t sum = eros_test::calculate_sum(1, 10);
+    fmt::print("Sum from 1 to 10: {}\n", sum);
     
-    fmt::print("Sum of cubes 1³ to 5³: {}\n", result);
+    std::string greeting = eros_test::get_greeting("EROS");
+    fmt::print("{}\n", greeting);
+    
+    int fib = eros_test::fibonacci(10);
+    fmt::print("Fibonacci(10): {}\n", fib);
+    
     fmt::print("CMake + Conan integration test passed!\n");
     
     return 0;

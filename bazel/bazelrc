@@ -135,6 +135,7 @@ build:asan --compilation_mode=dbg
 # - Deadlocks
 build:tsan --features=tsan
 build:tsan --compilation_mode=dbg
+build:tsan --define=eros_sanitizer=tsan
 
 # UndefinedBehaviorSanitizer (UBSan) - Detects undefined behavior
 # - Integer overflow
@@ -147,3 +148,4 @@ build:ubsan --compilation_mode=dbg
 # - Use of uninitialized memory
 build:msan --features=msan
 build:msan --compilation_mode=dbg
+build:msan --define=eros_sanitizer=msan

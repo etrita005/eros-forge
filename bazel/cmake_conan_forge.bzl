@@ -14,6 +14,8 @@
 #       cmake_lists = "CMakeLists.txt",
 #       srcs = glob(["src/**/*.cpp", "src/**/*.h"]),
 #       target_name = "my_target",
+#       out_static_libs = ["libmylib.a"],
+#       out_shared_libs = ["libmylib.so"],
 #   )
 
 def _conan_install_impl(ctx):
@@ -117,13 +119,37 @@ def _cmake_build_impl(ctx):
     conan_output_dir = ctx.attr.conan_deps[DefaultInfo].files.to_list()[0]
     
     build_dir = ctx.actions.declare_directory("{}_build".format(ctx.attr.name))
-    executable = ctx.actions.declare_file(ctx.attr.name)
+    
+    outputs = []
+    executable = None
+    
+    if ctx.attr.out_binary:
+        executable = ctx.actions.declare_file(ctx.attr.out_binary)
+        outputs.append(executable)
+    
+    for lib in ctx.attr.out_static_libs:
+        outputs.append(ctx.actions.declare_file(lib))
+    
+    for lib in ctx.attr.out_shared_libs:
+        outputs.append(ctx.actions.declare_file(lib))
     
     srcs = ctx.files.srcs
     cmake_lists = ctx.file.cmake_lists
     source_dir = cmake_lists.dirname
     
     script = ctx.actions.declare_file("cmake_build_{}.sh".format(ctx.attr.name))
+    
+    static_libs_args = " ".join(['"{}"'.format(lib) for lib in ctx.attr.out_static_libs])
+    shared_libs_args = " ".join(['"{}"'.format(lib) for lib in ctx.attr.out_shared_libs])
+    
+    strip_binary = ctx.attr.strip_binary
+    
+    strip_tool = ""
+    if ctx.attr.strip_tool:
+        strip_tool = ctx.attr.strip_tool
+    
+    cmake_preset = ctx.attr.cmake_preset
+    
     script_content = """#!/bin/bash
 set -e
 
@@ -132,12 +158,18 @@ BUILD_DIR="$2"
 CONAN_OUTPUT_DIR="$3"
 TARGET_NAME="$4"
 OUTPUT_EXE="$5"
+STATIC_LIBS="$6"
+SHARED_LIBS="$7"
+STRIP_BINARY="$8"
+STRIP_TOOL="$9"
+CMAKE_PRESET="${10}"
 
 CONAN_OUTPUT_DIR_ABS="$(pwd)/$CONAN_OUTPUT_DIR"
 
 echo "Source dir: $SOURCE_DIR"
 echo "Build dir: $BUILD_DIR"
 echo "Conan output dir: $CONAN_OUTPUT_DIR_ABS"
+echo "CMake preset: $CMAKE_PRESET"
 
 # Create symlinks to ALL Conan-generated files in source directory
 # This is needed because CMake preset uses relative paths
@@ -148,13 +180,36 @@ done
 
 # Configure using Conan preset with custom build directory
 # Append Conan output dir to CMAKE_FIND_ROOT_PATH for cross-compilation
-cmake --preset conan-release -B "$BUILD_DIR" -DCMAKE_FIND_ROOT_PATH:PATH="$CONAN_OUTPUT_DIR_ABS"
+cmake --preset "$CMAKE_PRESET" -B "$BUILD_DIR" -DCMAKE_FIND_ROOT_PATH:PATH="$CONAN_OUTPUT_DIR_ABS"
 
-# Build
-cmake --build "$BUILD_DIR" --target "$TARGET_NAME" -j10
+# Build all targets
+cmake --build "$BUILD_DIR" -j10
 
 # Copy executable
-find "$BUILD_DIR" -name "$TARGET_NAME" -type f -executable -exec cp {} "$OUTPUT_EXE" \\;
+if [ -n "$OUTPUT_EXE" ] && [ "$OUTPUT_EXE" != "" ]; then
+    find "$BUILD_DIR" -name "$TARGET_NAME" -type f -executable -exec cp {} "$OUTPUT_EXE" \\;
+    
+    # Strip binary in release mode
+    if [ "$STRIP_BINARY" = "true" ]; then
+        if [ -n "$STRIP_TOOL" ] && [ "$STRIP_TOOL" != "" ]; then
+            echo "Stripping binary with $STRIP_TOOL..."
+            "$STRIP_TOOL" "$OUTPUT_EXE"
+        else
+            echo "Stripping binary..."
+            strip "$OUTPUT_EXE"
+        fi
+    fi
+fi
+
+# Copy static libraries
+for lib in $STATIC_LIBS; do
+    find "$BUILD_DIR" -name "$lib" -type f -exec cp {} "$(dirname "$BUILD_DIR")/$lib" \\;
+done
+
+# Copy shared libraries
+for lib in $SHARED_LIBS; do
+    find "$BUILD_DIR" -name "$lib" -type f -exec cp {} "$(dirname "$BUILD_DIR")/$lib" \\;
+done
 
 # Cleanup
 for f in "$CONAN_OUTPUT_DIR_ABS"/*; do
@@ -170,15 +225,20 @@ done
     )
 
     ctx.actions.run_shell(
-        outputs = [build_dir, executable],
+        outputs = [build_dir] + outputs,
         inputs = ctx.attr.conan_deps[DefaultInfo].files.to_list() + srcs + [cmake_lists, script],
-        command = "bash {} {} {} {} {} {}".format(
+        command = 'bash {} {} {} {} {} {} "{}" "{}" "{}" "{}" "{}"'.format(
             script.path,
             source_dir,
             build_dir.path,
             conan_output_dir.path,
             ctx.attr.target_name,
-            executable.path,
+            executable.path if executable else "",
+            static_libs_args,
+            shared_libs_args,
+            "true" if strip_binary else "false",
+            strip_tool,
+            cmake_preset,
         ),
         mnemonic = "CMakeBuild",
         progress_message = "Building with CMake for {}".format(ctx.attr.name),
@@ -189,7 +249,7 @@ done
     )
 
     return [DefaultInfo(
-        files = depset([executable]),
+        files = depset(outputs),
         executable = executable,
     )]
 
@@ -205,11 +265,18 @@ cmake_build = rule(
             allow_files = [".cpp", ".h", ".hpp", ".c"],
         ),
         "target_name": attr.string(mandatory = True),
+        "out_binary": attr.string(default = ""),
+        "out_static_libs": attr.string_list(default = []),
+        "out_shared_libs": attr.string_list(default = []),
+        "strip_binary": attr.bool(default = False),
+        "strip_tool": attr.string(default = ""),
+        "cmake_preset": attr.string(default = "conan-release"),
     },
     executable = True,
 )
 
-def cmake_conan_forge(name, conanfile, cmake_lists, srcs, target_name = None, **kwargs):
+def cmake_conan_forge(name, conanfile, cmake_lists, srcs, target_name = None, 
+                      out_binary = None, out_static_libs = None, out_shared_libs = None, **kwargs):
     """Build a CMake project with Conan dependencies using Bazel toolchain.
 
     This macro creates the necessary rules to:
@@ -222,23 +289,89 @@ def cmake_conan_forge(name, conanfile, cmake_lists, srcs, target_name = None, **
         cmake_lists: Label of the CMakeLists.txt
         srcs: List of source files
         target_name: Name of the CMake target to build (defaults to name)
+        out_binary: Name of the output binary (defaults to target_name)
+        out_static_libs: List of static library outputs (e.g., ["libmylib.a"])
+        out_shared_libs: List of shared library outputs (e.g., ["libmylib.so"])
         **kwargs: Additional arguments
     """
     if target_name == None:
         target_name = name
+    
+    if out_binary == None:
+        out_binary = target_name
+    
+    if out_static_libs == None:
+        out_static_libs = []
+    
+    if out_shared_libs == None:
+        out_shared_libs = []
 
     host_profile = select({
+        "@eros_forge//bazel/toolchain:linux_arm64_tsan": "@eros_forge//bazel/toolchain/conan:linux_arm64_tsan",
+        "@eros_forge//bazel/toolchain:linux_arm64_msan": "@eros_forge//bazel/toolchain/conan:linux_arm64_msan",
+        "@eros_forge//bazel/toolchain:linux_arm64_asan": "@eros_forge//bazel/toolchain/conan:linux_arm64_asan",
+        "@eros_forge//bazel/toolchain:linux_arm64_cross_arm64_tsan": "@eros_forge//bazel/toolchain/conan:linux_arm64_cross_arm64_tsan",
+        "@eros_forge//bazel/toolchain:linux_arm64_cross_arm64_msan": "@eros_forge//bazel/toolchain/conan:linux_arm64_cross_arm64_msan",
+        "@eros_forge//bazel/toolchain:linux_arm64_cross_arm64_asan": "@eros_forge//bazel/toolchain/conan:linux_arm64_cross_arm64_asan",
+        "@eros_forge//bazel/toolchain:linux_x86_64_tsan": "@eros_forge//bazel/toolchain/conan:linux_x86_64_tsan",
+        "@eros_forge//bazel/toolchain:linux_x86_64_msan": "@eros_forge//bazel/toolchain/conan:linux_x86_64_msan",
+        "@eros_forge//bazel/toolchain:linux_x86_64_asan": "@eros_forge//bazel/toolchain/conan:linux_x86_64_asan",
+        "@eros_forge//bazel/toolchain:linux_x86_64_cross_arm64_tsan": "@eros_forge//bazel/toolchain/conan:linux_x86_64_cross_arm64_tsan",
+        "@eros_forge//bazel/toolchain:linux_x86_64_cross_arm64_msan": "@eros_forge//bazel/toolchain/conan:linux_x86_64_cross_arm64_msan",
+        "@eros_forge//bazel/toolchain:linux_x86_64_cross_arm64_asan": "@eros_forge//bazel/toolchain/conan:linux_x86_64_cross_arm64_asan",
+        "@eros_forge//bazel/toolchain:linux_x86_64_cross_arm64_debug": "@eros_forge//bazel/toolchain/conan:linux_x86_64_cross_arm64_host_debug",
         "@eros_forge//bazel/toolchain:linux_x86_64_cross_arm64": "@eros_forge//bazel/toolchain/conan:linux_x86_64_cross_arm64_host_release",
+        "@eros_forge//bazel/toolchain:linux_arm64_cross_arm64_debug": "@eros_forge//bazel/toolchain/conan:linux_arm64_cross_arm64_host_debug",
         "@eros_forge//bazel/toolchain:linux_arm64_cross_arm64": "@eros_forge//bazel/toolchain/conan:linux_arm64_cross_arm64_host_release",
+        "@eros_forge//bazel/toolchain:linux_arm64_debug": "@eros_forge//bazel/toolchain/conan:linux_arm64_debug",
         "@eros_forge//bazel/toolchain:linux_arm64": "@eros_forge//bazel/toolchain/conan:linux_arm64_release",
+        "@eros_forge//bazel/toolchain:linux_x86_64_debug": "@eros_forge//bazel/toolchain/conan:linux_x86_64_debug",
         "//conditions:default": "@eros_forge//bazel/toolchain/conan:linux_x86_64_release",
     })
     
     build_profile = select({
+        "@eros_forge//bazel/toolchain:linux_arm64_tsan": "@eros_forge//bazel/toolchain/conan:linux_arm64_tsan",
+        "@eros_forge//bazel/toolchain:linux_arm64_msan": "@eros_forge//bazel/toolchain/conan:linux_arm64_msan",
+        "@eros_forge//bazel/toolchain:linux_arm64_asan": "@eros_forge//bazel/toolchain/conan:linux_arm64_asan",
+        "@eros_forge//bazel/toolchain:linux_arm64_cross_arm64_tsan": "@eros_forge//bazel/toolchain/conan:linux_arm64_tsan",
+        "@eros_forge//bazel/toolchain:linux_arm64_cross_arm64_msan": "@eros_forge//bazel/toolchain/conan:linux_arm64_msan",
+        "@eros_forge//bazel/toolchain:linux_arm64_cross_arm64_asan": "@eros_forge//bazel/toolchain/conan:linux_arm64_asan",
+        "@eros_forge//bazel/toolchain:linux_x86_64_tsan": "@eros_forge//bazel/toolchain/conan:linux_x86_64_tsan",
+        "@eros_forge//bazel/toolchain:linux_x86_64_msan": "@eros_forge//bazel/toolchain/conan:linux_x86_64_msan",
+        "@eros_forge//bazel/toolchain:linux_x86_64_asan": "@eros_forge//bazel/toolchain/conan:linux_x86_64_asan",
+        "@eros_forge//bazel/toolchain:linux_x86_64_cross_arm64_tsan": "@eros_forge//bazel/toolchain/conan:linux_x86_64_tsan",
+        "@eros_forge//bazel/toolchain:linux_x86_64_cross_arm64_msan": "@eros_forge//bazel/toolchain/conan:linux_x86_64_msan",
+        "@eros_forge//bazel/toolchain:linux_x86_64_cross_arm64_asan": "@eros_forge//bazel/toolchain/conan:linux_x86_64_asan",
+        "@eros_forge//bazel/toolchain:linux_x86_64_cross_arm64_debug": "@eros_forge//bazel/toolchain/conan:linux_x86_64_cross_arm64_build_debug",
         "@eros_forge//bazel/toolchain:linux_x86_64_cross_arm64": "@eros_forge//bazel/toolchain/conan:linux_x86_64_cross_arm64_build_release",
+        "@eros_forge//bazel/toolchain:linux_arm64_cross_arm64_debug": "@eros_forge//bazel/toolchain/conan:linux_arm64_cross_arm64_build_debug",
         "@eros_forge//bazel/toolchain:linux_arm64_cross_arm64": "@eros_forge//bazel/toolchain/conan:linux_arm64_cross_arm64_build_release",
+        "@eros_forge//bazel/toolchain:linux_arm64_debug": "@eros_forge//bazel/toolchain/conan:linux_arm64_debug",
         "@eros_forge//bazel/toolchain:linux_arm64": "@eros_forge//bazel/toolchain/conan:linux_arm64_build_release",
+        "@eros_forge//bazel/toolchain:linux_x86_64_debug": "@eros_forge//bazel/toolchain/conan:linux_x86_64_debug",
         "//conditions:default": "@eros_forge//bazel/toolchain/conan:linux_x86_64_build_release",
+    })
+
+    strip_tool = select({
+        "@eros_forge//bazel/toolchain:linux_x86_64_cross_arm64": "aarch64-linux-gnu-strip",
+        "@eros_forge//bazel/toolchain:linux_arm64_cross_arm64": "aarch64-linux-gnu-strip",
+        "//conditions:default": "strip",
+    })
+
+    strip_binary = select({
+        "@eros_forge//bazel/toolchain:tsan": False,
+        "@eros_forge//bazel/toolchain:msan": False,
+        "@eros_forge//bazel/toolchain:asan": False,
+        "@eros_forge//bazel/toolchain:cmake_debug": False,
+        "//conditions:default": True,
+    })
+
+    cmake_preset = select({
+        "@eros_forge//bazel/toolchain:tsan": "conan-debug",
+        "@eros_forge//bazel/toolchain:msan": "conan-debug",
+        "@eros_forge//bazel/toolchain:asan": "conan-debug",
+        "@eros_forge//bazel/toolchain:cmake_debug": "conan-debug",
+        "//conditions:default": "conan-release",
     })
 
     conan_install(
@@ -255,5 +388,11 @@ def cmake_conan_forge(name, conanfile, cmake_lists, srcs, target_name = None, **
         cmake_lists = cmake_lists,
         srcs = srcs,
         target_name = target_name,
+        out_binary = out_binary,
+        out_static_libs = out_static_libs,
+        out_shared_libs = out_shared_libs,
+        strip_binary = strip_binary,
+        strip_tool = strip_tool,
+        cmake_preset = cmake_preset,
         visibility = ["//visibility:public"],
     )

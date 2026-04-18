@@ -14,3 +14,5 @@ os=Linux
 tools.cmake.cmaketoolchain:generator=Unix Makefiles
 tools.cmake.cmaketoolchain:system_name=Linux
 tools.cmake.cmaketoolchain:system_processor=aarch64
+tools.build:cflags=["-O0", "-g"]
+tools.build:cxxflags=["-O0", "-g"]

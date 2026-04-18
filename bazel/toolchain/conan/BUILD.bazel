@@ -73,3 +73,67 @@ filegroup(
     name = "linux_arm64_cross_arm64_build_debug",
     srcs = ["linux_arm64_cross_arm64_build_debug.profile"],
 )
+
+# Sanitizer profiles - Native ARM64
+filegroup(
+    name = "linux_arm64_tsan",
+    srcs = ["linux_arm64_tsan.profile"],
+)
+
+filegroup(
+    name = "linux_arm64_msan",
+    srcs = ["linux_arm64_msan.profile"],
+)
+
+filegroup(
+    name = "linux_arm64_asan",
+    srcs = ["linux_arm64_asan.profile"],
+)
+
+# Sanitizer profiles - Native x86_64
+filegroup(
+    name = "linux_x86_64_tsan",
+    srcs = ["linux_x86_64_tsan.profile"],
+)
+
+filegroup(
+    name = "linux_x86_64_msan",
+    srcs = ["linux_x86_64_msan.profile"],
+)
+
+filegroup(
+    name = "linux_x86_64_asan",
+    srcs = ["linux_x86_64_asan.profile"],
+)
+
+# Sanitizer profiles - ARM64 -> ARM64 cross-compilation
+filegroup(
+    name = "linux_arm64_cross_arm64_tsan",
+    srcs = ["linux_arm64_cross_arm64_tsan.profile"],
+)
+
+filegroup(
+    name = "linux_arm64_cross_arm64_msan",
+    srcs = ["linux_arm64_cross_arm64_msan.profile"],
+)
+
+filegroup(
+    name = "linux_arm64_cross_arm64_asan",
+    srcs = ["linux_arm64_cross_arm64_asan.profile"],
+)
+
+# Sanitizer profiles - x86_64 -> ARM64 cross-compilation
+filegroup(
+    name = "linux_x86_64_cross_arm64_tsan",
+    srcs = ["linux_x86_64_cross_arm64_tsan.profile"],
+)
+
+filegroup(
+    name = "linux_x86_64_cross_arm64_msan",
+    srcs = ["linux_x86_64_cross_arm64_msan.profile"],
+)
+
+filegroup(
+    name = "linux_x86_64_cross_arm64_asan",
+    srcs = ["linux_x86_64_cross_arm64_asan.profile"],
+)

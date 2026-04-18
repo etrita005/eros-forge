@@ -11,3 +11,5 @@ os=Linux
 tools.cmake.cmaketoolchain:generator=Unix Makefiles
 tools.cmake.cmaketoolchain:system_name=Linux
 tools.cmake.cmaketoolchain:system_processor=x86_64
+tools.build:cflags=["-O3", "-DNDEBUG"]
+tools.build:cxxflags=["-O3", "-DNDEBUG"]

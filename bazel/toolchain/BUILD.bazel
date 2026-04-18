@@ -43,6 +43,149 @@ config_setting(
     define_values = {"cmake_build_type": "Debug"},
 )
 
+config_setting(
+    name = "linux_x86_64_debug",
+    define_values = {
+        "eros_config": "linux_x86_64",
+        "cmake_build_type": "Debug",
+    },
+)
+
+config_setting(
+    name = "linux_arm64_debug",
+    define_values = {
+        "eros_config": "linux_arm64",
+        "cmake_build_type": "Debug",
+    },
+)
+
+config_setting(
+    name = "linux_arm64_cross_arm64_debug",
+    define_values = {
+        "eros_config": "linux_arm64_cross_arm64",
+        "cmake_build_type": "Debug",
+    },
+)
+
+config_setting(
+    name = "linux_x86_64_cross_arm64_debug",
+    define_values = {
+        "eros_config": "linux_x86_64_cross_arm64",
+        "cmake_build_type": "Debug",
+    },
+)
+
+config_setting(
+    name = "tsan",
+    define_values = {"eros_sanitizer": "tsan"},
+)
+
+config_setting(
+    name = "msan",
+    define_values = {"eros_sanitizer": "msan"},
+)
+
+config_setting(
+    name = "asan",
+    define_values = {"eros_sanitizer": "asan"},
+)
+
+config_setting(
+    name = "linux_arm64_tsan",
+    define_values = {
+        "eros_config": "linux_arm64",
+        "eros_sanitizer": "tsan",
+    },
+)
+
+config_setting(
+    name = "linux_arm64_msan",
+    define_values = {
+        "eros_config": "linux_arm64",
+        "eros_sanitizer": "msan",
+    },
+)
+
+config_setting(
+    name = "linux_arm64_asan",
+    define_values = {
+        "eros_config": "linux_arm64",
+        "eros_sanitizer": "asan",
+    },
+)
+
+config_setting(
+    name = "linux_arm64_cross_arm64_tsan",
+    define_values = {
+        "eros_config": "linux_arm64_cross_arm64",
+        "eros_sanitizer": "tsan",
+    },
+)
+
+config_setting(
+    name = "linux_arm64_cross_arm64_msan",
+    define_values = {
+        "eros_config": "linux_arm64_cross_arm64",
+        "eros_sanitizer": "msan",
+    },
+)
+
+config_setting(
+    name = "linux_arm64_cross_arm64_asan",
+    define_values = {
+        "eros_config": "linux_arm64_cross_arm64",
+        "eros_sanitizer": "asan",
+    },
+)
+
+config_setting(
+    name = "linux_x86_64_tsan",
+    define_values = {
+        "eros_config": "linux_x86_64",
+        "eros_sanitizer": "tsan",
+    },
+)
+
+config_setting(
+    name = "linux_x86_64_msan",
+    define_values = {
+        "eros_config": "linux_x86_64",
+        "eros_sanitizer": "msan",
+    },
+)
+
+config_setting(
+    name = "linux_x86_64_asan",
+    define_values = {
+        "eros_config": "linux_x86_64",
+        "eros_sanitizer": "asan",
+    },
+)
+
+config_setting(
+    name = "linux_x86_64_cross_arm64_tsan",
+    define_values = {
+        "eros_config": "linux_x86_64_cross_arm64",
+        "eros_sanitizer": "tsan",
+    },
+)
+
+config_setting(
+    name = "linux_x86_64_cross_arm64_msan",
+    define_values = {
+        "eros_config": "linux_x86_64_cross_arm64",
+        "eros_sanitizer": "msan",
+    },
+)
+
+config_setting(
+    name = "linux_x86_64_cross_arm64_asan",
+    define_values = {
+        "eros_config": "linux_x86_64_cross_arm64",
+        "eros_sanitizer": "asan",
+    },
+)
+
 platform(
     name = "linux_x86_64_platform",
     constraint_values = [
