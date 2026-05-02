@@ -70,7 +70,7 @@ for config in "${PLATFORM_CONFIGS[@]}"; do
     echo "Testing platform config: $config"
     echo "========================================="
     
-    cd "$PROJECT_DIR"
+    cd "$PROJECT_DIR/src"
     bazel clean
     
     echo ""

@@ -32,7 +32,7 @@ for config in "${SANITIZER_CONFIGS[@]}"; do
     echo "Testing sanitizer config: $config"
     echo "========================================="
     
-    cd "$PROJECT_DIR"
+    cd "$PROJECT_DIR/src"
     bazel clean
     
     echo ""

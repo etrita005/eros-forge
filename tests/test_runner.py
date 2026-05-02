@@ -107,12 +107,13 @@ class TestRunner:
             config_script_map = {
                 "platform": "test_platform_configs.sh",
                 "build_mode": "test_build_modes.sh",
-                "sanitizer": "test_sanitizers.sh"
+                "sanitizer": "test_sanitizers.sh",
+                "dependency": "test_dependency_consumption.sh"
             }
             script_name = config_script_map.get(config_type)
             if not script_name:
                 print(f"Error: Unknown config type '{config_type}'")
-                print(f"Valid options: platform, build_mode, sanitizer")
+                print(f"Valid options: platform, build_mode, sanitizer, dependency")
                 return
             
             script_path = test_configs_dir / script_name
@@ -126,7 +127,8 @@ class TestRunner:
             scripts = [
                 ("test_platform_configs.sh", "platform"),
                 ("test_build_modes.sh", "build_mode"),
-                ("test_sanitizers.sh", "sanitizer")
+                ("test_sanitizers.sh", "sanitizer"),
+                ("test_dependency_consumption.sh", "dependency")
             ]
             
             for script_name, config in scripts:
@@ -201,7 +203,7 @@ class TestRunner:
 def main():
     parser = argparse.ArgumentParser(description="EROS Forge Test Runner")
     parser.add_argument("--test", help="Run specific test (bazel_simple, bazel_cmake, bazel_cmake_conan)")
-    parser.add_argument("--config", help="Run specific config type (platform, build_mode, sanitizer)")
+    parser.add_argument("--config", help="Run specific config type (platform, build_mode, sanitizer, dependency)")
     parser.add_argument("--all", action="store_true", help="Run all tests")
     parser.add_argument("--report", help="Generate report to file")
     

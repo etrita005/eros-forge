@@ -13,5 +13,6 @@ cmake_conan_forge(
     out_binary = "hello",
     out_static_libs = ["libmylib_static.a"],
     out_shared_libs = ["libmylib_shared.so"],
+    hdrs = ["mylib.h"],
     visibility = ["//visibility:public"],
 )

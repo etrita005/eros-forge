@@ -1,0 +1,16 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_binary(
+    name = "consumer_static",
+    srcs = ["main.cpp"],
+    deps = ["@bazel_simple_test//:math_utils_static"],
+    linkstatic = True,
+)
+
+cc_binary(
+    name = "consumer_shared",
+    srcs = ["main.cpp"],
+    deps = ["@bazel_simple_test//:math_utils_shared"],
+)

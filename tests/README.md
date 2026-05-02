@@ -8,10 +8,11 @@
 - Sanitizer 支持（ASan、TSan、MSan、UBSan）
 - CMake 集成
 - Conan 集成
+- 跨模块依赖消费（静态库、动态库、头文件）
 
 **测试统计**:
 - 测试项目数：3
-- 测试用例总数：36
+- 测试用例总数：48
 - 自动化检查：制品结果验证 + 编译选项验证
 
 详细测试用例清单请参考：[TEST_CASES.md](TEST_CASES.md)
@@ -21,20 +22,23 @@
 ### 1. Bazel9 C++ 简单项目测试
 - 位置：`tests/bazel_simple/`
 - 测试内容：纯 Bazel C++ 项目的构建和验证
-- 测试用例数：12 (4 个平台配置 + 2 个构建模式 + 4 个 Sanitizer)
+- 测试用例数：16 (4 个平台配置 + 2 个构建模式 + 4 个 Sanitizer + 4 个依赖消费)
 - 验证项：制品结果、编译选项
+- 依赖消费测试：`consumer/` 子目录验证导出的静态库、动态库和头文件可被其他模块消费
 
 ### 2. Bazel9 + CMake 项目测试
 - 位置：`tests/bazel_cmake/`
 - 测试内容：使用 cmake_forge 宏构建 CMake 项目
-- 测试用例数：12 (4 个平台配置 + 2 个构建模式 + 4 个 Sanitizer)
+- 测试用例数：16 (4 个平台配置 + 2 个构建模式 + 4 个 Sanitizer + 4 个依赖消费)
 - 验证项：制品结果、编译选项、CMake 集成
+- 依赖消费测试：`consumer/` 子目录验证 CMake 构建的库可被其他模块消费
 
 ### 3. Bazel9 + CMake + Conan 项目测试
 - 位置：`tests/bazel_cmake_conan/`
 - 测试内容：使用 cmake_conan_forge 宏构建带 Conan 依赖的项目
-- 测试用例数：12 (4 个平台配置 + 2 个构建模式 + 4 个 Sanitizer)
+- 测试用例数：16 (4 个平台配置 + 2 个构建模式 + 4 个 Sanitizer + 4 个依赖消费)
 - 验证项：制品结果、编译选项、CMake 集成、Conan 依赖
+- 依赖消费测试：`consumer/` 子目录验证 CMake+Conan 构建的库可被其他模块消费
 
 ## 测试配置
 
@@ -105,6 +109,9 @@ python3 test_runner.py --test bazel_simple --config build_mode
 
 # 只测试 Sanitizer
 python3 test_runner.py --test bazel_simple --config sanitizer
+
+# 只测试依赖消费
+python3 test_runner.py --test bazel_simple --config dependency
 ```
 
 ### 单独运行测试脚本
@@ -120,6 +127,9 @@ cd eros/forge/tests/bazel_simple
 
 # 运行 Sanitizer 测试
 ./test_configs/test_sanitizers.sh
+
+# 运行依赖消费测试
+./test_configs/test_dependency_consumption.sh
 ```
 
 ### 测试执行流程
@@ -143,6 +153,11 @@ cd eros/forge/tests/bazel_simple
    - 使用不同 Sanitizer 配置构建
    - 验证 Sanitizer 插桩
    - 运行程序（如适用）
+
+4. **依赖消费测试**
+   - 在 consumer/ 子目录中构建消费者项目
+   - 验证消费者项目能正确链接库文件和头文件
+   - 验证消费者二进制架构和执行结果
 
 ### 测试输出
 

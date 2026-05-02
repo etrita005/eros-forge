@@ -18,6 +18,8 @@
 #       out_shared_libs = ["libmylib.so"],
 #   )
 
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
 load("@rules_cc//cc:defs.bzl", "CcInfo", "cc_common")
 
 def _conan_install_impl(ctx):
@@ -129,7 +131,6 @@ def _cmake_build_impl(ctx):
         executable = ctx.actions.declare_file(ctx.attr.out_binary)
         outputs.append(executable)
     else:
-        # Must provide an executable for executable=True rules
         executable = ctx.actions.declare_file("_{}_dummy".format(ctx.attr.name))
         outputs.append(executable)
     
@@ -158,6 +159,29 @@ def _cmake_build_impl(ctx):
         strip_tool = ctx.attr.strip_tool
     
     cmake_preset = ctx.attr.cmake_preset
+
+    include_dirs = []
+    library_dirs = []
+    dep_files = []
+    for dep in ctx.attr.deps:
+        cc_info = dep[CcInfo]
+        compilation_context = cc_info.compilation_context
+        for include in compilation_context.includes.to_list():
+            include_dirs.append(include)
+        linking_context = cc_info.linking_context
+        for linker_input in linking_context.linker_inputs.to_list():
+            for lib in linker_input.libraries:
+                if lib.static_library:
+                    library_dirs.append(lib.static_library.dirname)
+                    dep_files.append(lib.static_library)
+                if lib.dynamic_library:
+                    library_dirs.append(lib.dynamic_library.dirname)
+                    dep_files.append(lib.dynamic_library)
+                if lib.pic_static_library:
+                    library_dirs.append(lib.pic_static_library.dirname)
+                    dep_files.append(lib.pic_static_library)
+    include_path_str = ":".join([str(p) for p in include_dirs])
+    library_path_str = ":".join([str(p) for p in library_dirs])
     
     script_content = """#!/bin/bash
 set -e
@@ -219,7 +243,9 @@ cmake -S "$SOURCE_DIR" -B "$BUILD_DIR" \
     -DCMAKE_BUILD_TYPE="$CMAKE_BUILD_TYPE" \
     -DCMAKE_POLICY_DEFAULT_CMP0091=NEW \
     -G "Unix Makefiles" \
-    -DCMAKE_FIND_ROOT_PATH:PATH="$CONAN_OUTPUT_DIR_ABS"
+    -DCMAKE_FIND_ROOT_PATH:PATH="$CONAN_OUTPUT_DIR_ABS" \
+    ${CMAKE_INCLUDE_PATH:+-DCMAKE_INCLUDE_PATH="$CMAKE_INCLUDE_PATH"} \
+    ${CMAKE_LIBRARY_PATH:+-DCMAKE_LIBRARY_PATH="$CMAKE_LIBRARY_PATH"}
 
 # Build all targets
 cmake --build "$BUILD_DIR" -j10
@@ -313,8 +339,10 @@ rm -f "$(pwd)/CMakePresets.json"
 
     ctx.actions.run_shell(
         outputs = [build_dir] + outputs,
-        inputs = ctx.attr.conan_deps[DefaultInfo].files.to_list() + srcs + [cmake_lists, script],
-        command = 'bash {} {} {} {} {} {} "{}" "{}" "{}" "{}" "{}" "{}"'.format(
+        inputs = ctx.attr.conan_deps[DefaultInfo].files.to_list() + srcs + [cmake_lists, script] + dep_files,
+        command = 'export CMAKE_INCLUDE_PATH="{}" && export CMAKE_LIBRARY_PATH="{}" && bash {} {} {} {} {} {} "{}" "{}" "{}" "{}" "{}" "{}"'.format(
+            include_path_str,
+            library_path_str,
             script.path,
             source_dir,
             build_dir.path,
@@ -390,6 +418,10 @@ rm -f "$(pwd)/CMakePresets.json"
             compilation_context = compilation_context,
             linking_context = linking_context,
         )
+
+        for dep in ctx.attr.deps:
+            cc_info = cc_info.merge(dep[CcInfo])
+
         providers.append(cc_info)
 
     return providers
@@ -414,6 +446,7 @@ cmake_build = rule(
         "strip_binary": attr.bool(default = False),
         "strip_tool": attr.string(default = ""),
         "cmake_preset": attr.string(default = "conan-release"),
+        "deps": attr.label_list(providers = [CcInfo]),
         "_cc_toolchain": attr.label(
             default = Label("@rules_cc//cc:current_cc_toolchain"),
         ),
@@ -425,7 +458,7 @@ cmake_build = rule(
 
 def cmake_conan_forge(name, conanfile, cmake_lists, srcs, target_name = None,
                       out_binary = None, out_static_libs = None, out_shared_libs = None,
-                      hdrs = None, includes = None, **kwargs):
+                      hdrs = None, includes = None, deps = None, **kwargs):
     """Build a CMake project with Conan dependencies using Bazel toolchain.
 
     This macro creates the necessary rules to:
@@ -443,6 +476,7 @@ def cmake_conan_forge(name, conanfile, cmake_lists, srcs, target_name = None,
         out_shared_libs: List of shared library outputs (e.g., ["libmylib.so"])
         hdrs: List of header files for cc_library wrapper (optional)
         includes: List of include paths for cc_library wrapper (optional)
+        deps: List of dependencies providing CcInfo (optional)
         **kwargs: Additional arguments
     """
     if target_name == None:
@@ -541,6 +575,9 @@ def cmake_conan_forge(name, conanfile, cmake_lists, srcs, target_name = None,
 
     linkopts = kwargs.pop("linkopts", [])
 
+    if deps == None:
+        deps = []
+
     if hdrs:
         cmake_build_name = "_{}_cmake".format(name)
         cmake_build(
@@ -557,9 +594,10 @@ def cmake_conan_forge(name, conanfile, cmake_lists, srcs, target_name = None,
             strip_binary = strip_binary,
             strip_tool = strip_tool,
             cmake_preset = cmake_preset,
+            deps = deps,
             visibility = ["//visibility:private"],
         )
-        native.cc_library(
+        cc_library(
             name = name,
             deps = [":{}".format(cmake_build_name)],
             hdrs = hdrs,
@@ -581,5 +619,6 @@ def cmake_conan_forge(name, conanfile, cmake_lists, srcs, target_name = None,
             strip_binary = strip_binary,
             strip_tool = strip_tool,
             cmake_preset = cmake_preset,
+            deps = deps,
             visibility = visibility,
         )

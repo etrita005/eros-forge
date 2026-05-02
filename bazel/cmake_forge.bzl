@@ -20,6 +20,7 @@ def cmake_forge(name, **kwargs):
     cache_entries = kwargs.pop("cache_entries", {})
     generate_crosstool_file = kwargs.pop("generate_crosstool_file", False)
     data = kwargs.pop("data", [])
+    deps = kwargs.pop("deps", [])
 
     native.filegroup(
         name = "_{}_toolchain_file".format(name),
@@ -48,6 +49,7 @@ def cmake_forge(name, **kwargs):
         } | cache_entries,
         generate_crosstool_file = generate_crosstool_file,
         data = data + [toolchain_file_target],
+        deps = deps,
         **kwargs
     )
 
@@ -60,6 +62,7 @@ def cmake_forge(name, **kwargs):
         } | cache_entries,
         generate_crosstool_file = generate_crosstool_file,
         data = data + [toolchain_file_target],
+        deps = deps,
         **kwargs
     )
 

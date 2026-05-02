@@ -1,4 +1,5 @@
 load("@eros_forge//bazel:cmake_forge.bzl", "cmake_forge")
+load("@rules_cc//cc:defs.bzl", "cc_library")
 
 filegroup(
     name = "src_files",
@@ -12,5 +13,12 @@ cmake_forge(
     out_binaries = ["hello_cmake"],
     out_static_libs = ["libmath_utils_static.a"],
     out_shared_libs = ["libmath_utils_shared.so"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "math_utils",
+    hdrs = ["lib/math_utils.h"],
+    deps = [":hello"],
     visibility = ["//visibility:public"],
 )

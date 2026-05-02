@@ -1,0 +1,10 @@
+{
+    "version": 4,
+    "vendor": {
+        "conan": {}
+    },
+    "include": [
+        "bazel-out/aarch64-dbg/bin/conan_output__hello_conan/CMakePresets.json",
+        "../../bazel-out/aarch64-fastbuild/bin/external/bazel_cmake_conan_test+/conan_output__hello_conan/CMakePresets.json"
+    ]
+}

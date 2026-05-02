@@ -39,7 +39,7 @@ for config in "${SANITIZER_CONFIGS[@]}"; do
     echo "Platform config: $PLATFORM_CONFIG"
     echo "========================================="
     
-    cd "$PROJECT_DIR"
+    cd "$PROJECT_DIR/src"
     bazel clean
     
     echo ""

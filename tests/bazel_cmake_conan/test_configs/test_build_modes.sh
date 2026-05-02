@@ -36,7 +36,7 @@ for mode in "${BUILD_MODES[@]}"; do
     echo "Testing build mode: $mode (platform: $PLATFORM_CONFIG)"
     echo "========================================="
     
-    cd "$PROJECT_DIR"
+    cd "$PROJECT_DIR/src"
     bazel clean
     
     echo ""

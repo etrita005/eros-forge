@@ -29,25 +29,27 @@ EROS Forge 测试集合用于验证 EROS Forge 构建系统的各项功能，包
 - ✅ Sanitizer 支持（TSan、MSan）
 - ✅ CMake 集成
 - ✅ Conan 集成
+- ✅ 跨模块依赖消费（静态库、动态库、头文件）
 
 ### 测试统计
 
 | 项目 | 数量 |
 |------|------|
 | 测试项目数 | 3 |
-| 测试用例总数 | 36 |
+| 测试用例总数 | 48 |
 | 自动化检查类型 | 2（制品结果验证 + 编译选项验证） |
 | 平台配置 | 4 |
 | 构建模式 | 2 |
 | Sanitizer 配置 | 4 |
+| 依赖消费测试 | 4 |
 
 ### 测试项目
 
 | 项目名称 | 位置 | 描述 | 用例数 |
 |---------|------|------|--------|
-| **Bazel9 C++ 简单项目** | `tests/bazel_simple/` | 纯 Bazel C++ 项目 | 12 |
-| **Bazel9 + CMake 项目** | `tests/bazel_cmake/` | 使用 cmake_forge 宏构建 | 12 |
-| **Bazel9 + CMake + Conan 项目** | `tests/bazel_cmake_conan/` | 使用 cmake_conan_forge 宏 + Conan 依赖 | 12 |
+| **Bazel9 C++ 简单项目** | `tests/bazel_simple/` | 纯 Bazel C++ 项目 | 16 |
+| **Bazel9 + CMake 项目** | `tests/bazel_cmake/` | 使用 cmake_forge 宏构建 | 16 |
+| **Bazel9 + CMake + Conan 项目** | `tests/bazel_cmake_conan/` | 使用 cmake_conan_forge 宏 + Conan 依赖 | 16 |
 
 ---
 
@@ -60,10 +62,11 @@ EROS Forge 测试集合用于验证 EROS Forge 构建系统的各项功能，包
 - **BS**: Bazel Sanitizer (Bazel Sanitizer 测试)
 - **BC**: Bazel CMake (Bazel+CMake 测试)
 - **BCC**: Bazel CMake Conan (Bazel+CMake+Conan 测试)
+- **DC**: Dependency Consumption (跨模块依赖消费测试)
 
 ### 完整测试用例列表
 
-#### 1. Bazel9 C++ 简单项目 (12 个用例)
+#### 1. Bazel9 C++ 简单项目 (16 个用例)
 
 **平台配置测试 (4 个)**:
 - BP-001: `--config=linux_x86_64` - x86_64 原生编译
@@ -81,7 +84,13 @@ EROS Forge 测试集合用于验证 EROS Forge 构建系统的各项功能，包
 - BS-003: `--config=msan` - MemorySanitizer
 - BS-004: `--config=no_sanitizer` - 禁用 Sanitizer
 
-#### 2. Bazel9 + CMake 项目 (12 个用例)
+**依赖消费测试 (4 个)**:
+- DC-BP-001: `--config=linux_x86_64` - 消费静态库和动态库（x86_64）
+- DC-BP-002: `--config=linux_arm64` - 消费静态库和动态库（ARM64）
+- DC-BP-003: `--config=linux_x86_64_cross_arm64` - 消费静态库和动态库（交叉编译）
+- DC-BP-004: `--config=linux_arm64_cross_arm64` - 消费静态库和动态库（自定义 glibc）
+
+#### 2. Bazel9 + CMake 项目 (16 个用例)
 
 **平台配置测试 (4 个)**:
 - BC-001: `--config=linux_x86_64` - x86_64 原生编译
@@ -99,7 +108,13 @@ EROS Forge 测试集合用于验证 EROS Forge 构建系统的各项功能，包
 - BC-BS-003: `--config=msan` - MemorySanitizer
 - BC-BS-004: `--config=no_sanitizer` - 禁用 Sanitizer
 
-#### 3. Bazel9 + CMake + Conan 项目 (12 个用例)
+**依赖消费测试 (4 个)**:
+- DC-BC-001: `--config=linux_x86_64` - 消费 CMake 构建的库（x86_64）
+- DC-BC-002: `--config=linux_arm64` - 消费 CMake 构建的库（ARM64）
+- DC-BC-003: `--config=linux_x86_64_cross_arm64` - 消费 CMake 构建的库（交叉编译）
+- DC-BC-004: `--config=linux_arm64_cross_arm64` - 消费 CMake 构建的库（自定义 glibc）
+
+#### 3. Bazel9 + CMake + Conan 项目 (16 个用例)
 
 **平台配置测试 (4 个)**:
 - BCC-001: `--config=linux_x86_64` - x86_64 原生编译
@@ -117,13 +132,19 @@ EROS Forge 测试集合用于验证 EROS Forge 构建系统的各项功能，包
 - BCC-BS-003: `--config=msan` - MemorySanitizer
 - BCC-BS-004: `--config=no_sanitizer` - 禁用 Sanitizer
 
+**依赖消费测试 (4 个)**:
+- DC-BCC-001: `--config=linux_x86_64` - 消费 CMake+Conan 构建的库（x86_64）
+- DC-BCC-002: `--config=linux_arm64` - 消费 CMake+Conan 构建的库（ARM64）
+- DC-BCC-003: `--config=linux_x86_64_cross_arm64` - 消费 CMake+Conan 构建的库（交叉编译）
+- DC-BCC-004: `--config=linux_arm64_cross_arm64` - 消费 CMake+Conan 构建的库（自定义 glibc）
+
 ### 测试覆盖矩阵
 
-| 测试类型 | 平台配置 | 构建模式 | Sanitizer | CMake | Conan |
-|---------|:-------:|:-------:|:---------:|:-----:|:-----:|
-| bazel_simple | ✅ 4 个 | ✅ 2 个 | ✅ 4 个 | ❌ | ❌ |
-| bazel_cmake | ✅ 4 个 | ✅ 2 个 | ✅ 4 个 | ✅ | ❌ |
-| bazel_cmake_conan | ✅ 4 个 | ✅ 2 个 | ✅ 4 个 | ✅ | ✅ |
+| 测试类型 | 平台配置 | 构建模式 | Sanitizer | CMake | Conan | 依赖消费 |
+|---------|:-------:|:-------:|:---------:|:-----:|:-----:|:-------:|
+| bazel_simple | ✅ 4 个 | ✅ 2 个 | ✅ 4 个 | ❌ | ❌ | ✅ 4 个 |
+| bazel_cmake | ✅ 4 个 | ✅ 2 个 | ✅ 4 个 | ✅ | ❌ | ✅ 4 个 |
+| bazel_cmake_conan | ✅ 4 个 | ✅ 2 个 | ✅ 4 个 | ✅ | ✅ | ✅ 4 个 |
 
 ---
 
@@ -274,16 +295,27 @@ bazel_simple/
 ├── BUILD.bazel           # Bazel 构建配置
 ├── MODULE.bazel          # Bazel 模块配置
 ├── .bazelrc              # Bazel 运行时配置
+├── .bazelignore          # 忽略 consumer 子目录
+├── lib/                  # 库源文件
+│   ├── math_utils.h      # 数学工具库头文件
+│   └── math_utils.cpp    # 数学工具库源文件
+├── consumer/             # 依赖消费测试项目
+│   ├── main.cpp          # 消费者主程序
+│   ├── BUILD.bazel       # 消费者构建配置
+│   ├── MODULE.bazel      # 消费者模块配置
+│   └── .bazelrc          # 消费者 Bazel 配置
 └── test_configs/         # 测试脚本目录
     ├── test_platform_configs.sh   # 平台配置测试
     ├── test_build_modes.sh        # 构建模式测试
-    └── test_sanitizers.sh         # Sanitizer 测试
+    ├── test_sanitizers.sh         # Sanitizer 测试
+    └── test_dependency_consumption.sh  # 依赖消费测试
 ```
 
 **测试脚本**:
 - `test_platform_configs.sh`: 测试 4 种平台配置
 - `test_build_modes.sh`: 测试 Debug/Release 构建模式
 - `test_sanitizers.sh`: 测试 4 种 Sanitizer 配置
+- `test_dependency_consumption.sh`: 测试跨模块依赖消费（静态库 + 动态库 + 头文件）
 
 **验证项**:
 - ✓ 二进制架构检查
@@ -308,16 +340,27 @@ bazel_cmake/
 ├── BUILD.bazel           # Bazel 构建配置（使用 cmake_forge）
 ├── MODULE.bazel          # Bazel 模块配置
 ├── .bazelrc              # Bazel 运行时配置
+├── .bazelignore          # 忽略 consumer 子目录
+├── lib/                  # 库源文件
+│   ├── math_utils.h      # 数学工具库头文件
+│   └── math_utils.cpp    # 数学工具库源文件
+├── consumer/             # 依赖消费测试项目
+│   ├── main.cpp          # 消费者主程序
+│   ├── BUILD.bazel       # 消费者构建配置
+│   ├── MODULE.bazel      # 消费者模块配置
+│   └── .bazelrc          # 消费者 Bazel 配置
 └── test_configs/         # 测试脚本目录
     ├── test_platform_configs.sh
     ├── test_build_modes.sh
-    └── test_sanitizers.sh
+    ├── test_sanitizers.sh
+    └── test_dependency_consumption.sh
 ```
 
 **测试脚本**:
 - `test_platform_configs.sh`: 测试 4 种平台配置（验证 CMake 工具链）
 - `test_build_modes.sh`: 测试 Debug/Release 构建模式
 - `test_sanitizers.sh`: 测试 4 种 Sanitizer 配置
+- `test_dependency_consumption.sh`: 测试跨模块依赖消费（验证 CMake 构建的库可被其他模块消费）
 
 **验证项**:
 - ✓ 包含所有 Bazel 简单项目的验证项
@@ -341,16 +384,24 @@ bazel_cmake_conan/
 ├── BUILD.bazel           # Bazel 构建配置（使用 cmake_conan_forge）
 ├── MODULE.bazel          # Bazel 模块配置
 ├── .bazelrc              # Bazel 运行时配置
+├── .bazelignore          # 忽略 consumer 子目录
+├── consumer/             # 依赖消费测试项目
+│   ├── main.cpp          # 消费者主程序
+│   ├── BUILD.bazel       # 消费者构建配置
+│   ├── MODULE.bazel      # 消费者模块配置
+│   └── .bazelrc          # 消费者 Bazel 配置
 └── test_configs/         # 测试脚本目录
     ├── test_platform_configs.sh
     ├── test_build_modes.sh
-    └── test_sanitizers.sh
+    ├── test_sanitizers.sh
+    └── test_dependency_consumption.sh
 ```
 
 **测试脚本**:
 - `test_platform_configs.sh`: 测试 4 种平台配置（验证 Conan 依赖解析）
 - `test_build_modes.sh`: 测试 Debug/Release 构建模式（验证 Conan 包模式）
 - `test_sanitizers.sh`: 测试 4 种 Sanitizer 配置（验证 Conan 包兼容性）
+- `test_dependency_consumption.sh`: 测试跨模块依赖消费（验证 CMake+Conan 构建的库可被其他模块消费）
 
 **验证项**:
 - ✓ 包含所有 Bazel+CMake 项目的验证项
@@ -470,6 +521,21 @@ cd eros/forge/tests/bazel_simple
 ./test_configs/test_sanitizers.sh no_sanitizer
 ```
 
+#### 依赖消费测试
+
+```bash
+cd eros/forge/tests/bazel_simple
+
+# 运行所有依赖消费测试
+./test_configs/test_dependency_consumption.sh
+
+# 运行特定配置的依赖消费测试
+./test_configs/test_dependency_consumption.sh linux_x86_64
+./test_configs/test_dependency_consumption.sh linux_arm64
+./test_configs/test_dependency_consumption.sh linux_x86_64_cross_arm64
+./test_configs/test_dependency_consumption.sh linux_arm64_cross_arm64
+```
+
 ### 测试执行流程
 
 测试 runner 会按以下顺序执行测试：
@@ -491,6 +557,13 @@ cd eros/forge/tests/bazel_simple
    - 使用不同 Sanitizer 配置构建
    - 验证 Sanitizer 插桩
    - 运行程序（如适用）
+
+4. **依赖消费测试**
+   - 在 consumer/ 子目录中构建消费者项目
+   - 验证消费者项目能正确链接库文件和头文件
+   - 验证消费者二进制架构正确
+   - 验证消费者二进制执行成功（原生编译）
+   - 验证动态链接器和 RUNPATH（交叉编译）
 
 ### 测试输出示例
 
@@ -956,6 +1029,7 @@ python3 test_runner.py --test bazel_cmake_conan
 python3 test_runner.py --test bazel_simple --config platform
 python3 test_runner.py --test bazel_simple --config build_mode
 python3 test_runner.py --test bazel_simple --config sanitizer
+python3 test_runner.py --test bazel_simple --config dependency
 
 # 生成测试报告
 python3 test_runner.py --all --report report.txt
@@ -969,18 +1043,21 @@ cd bazel_simple
 ./test_configs/test_platform_configs.sh
 ./test_configs/test_build_modes.sh
 ./test_configs/test_sanitizers.sh
+./test_configs/test_dependency_consumption.sh
 
 # Bazel + CMake 项目
 cd bazel_cmake
 ./test_configs/test_platform_configs.sh
 ./test_configs/test_build_modes.sh
 ./test_configs/test_sanitizers.sh
+./test_configs/test_dependency_consumption.sh
 
 # Bazel + CMake + Conan 项目
 cd bazel_cmake_conan
 ./test_configs/test_platform_configs.sh
 ./test_configs/test_build_modes.sh
 ./test_configs/test_sanitizers.sh
+./test_configs/test_dependency_consumption.sh
 ```
 
 ### 附录 C: 相关文档
@@ -993,6 +1070,6 @@ cd bazel_cmake_conan
 
 ---
 
-**文档版本**: 1.0  
-**最后更新**: 2026-04-11  
+**文档版本**: 1.1
+**最后更新**: 2026-05-03
 **维护者**: EROS Forge Team
