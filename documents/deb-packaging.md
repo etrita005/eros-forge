@@ -20,15 +20,40 @@ pkg_eros_deb(
 
 ### 2. 构建 deb 包
 
+`pkg_eros_deb` 生成**单个** `pkg_deb` 目标，其架构根据目标平台的 cpu 约束自动选择
+（`x86_64` -> `amd64`，`arm64` -> `arm64`），无需也**不会**生成多余的 `_amd64`/`_arm64`
+目标污染 `bazel query //...`。
+
 ```bash
-# 构建 x86_64 架构
-bazel build --config=x86_64 //:my_package_deb
+# 构建 x86_64 (amd64) 架构
+bazel build --config=linux_x86_64 //:my_package_deb
 
 # 构建 arm64 架构
-bazel build --config=arm64 //:my_package_deb
+bazel build --config=linux_arm64 //:my_package_deb
+
+# 交叉编译到 ARM64（同样得到 arm64 deb）
+bazel build --config=linux_x86_64_cross_arm64 //:my_package_deb
 
 # 指定版本号
-bazel build --config=x86_64 //:my_package_deb --define=DEB_VERSION=1.2.3
+bazel build --config=linux_x86_64 //:my_package_deb --define=DEB_VERSION=1.2.3
+# 或通过环境变量（需 bazelrc 的 build --action_env=DEB_VERSION，Forge 已默认提供）
+DEB_VERSION=1.2.3 bazel build --config=linux_x86_64 //:my_package_deb
+```
+
+如需在一个 workspace 中显式生成多个架构的 deb 目标，使用
+`pkg_eros_deb_multiarch`，它会为每个架构生成一个带 `manual` 标签的 `pkg_deb`
+（如 `my_package_deb_amd64`、`my_package_deb_arm64`）：
+
+```python
+pkg_eros_deb_multiarch(
+    name = "my_package_deb",
+    package_name = "my-package",
+    data = ":my_data_tar",
+    description = "My package description",
+    maintainer = "Team <team@example.com>",
+    architectures = ["amd64", "arm64"],
+)
+# bazel build //:my_package_deb_arm64 --config=linux_arm64
 ```
 
 ## 完整示例
@@ -153,21 +178,33 @@ pkg_eros_tar(
 版本号优先级（从高到低）：
 
 1. `version` 参数显式指定
-2. `--define=DEB_VERSION=x.x.x` 命令行参数
-3. 默认值 `0.1.0`
+2. `DEB_VERSION` 环境变量（需 bazelrc 的 `build --action_env=DEB_VERSION`，Forge 已默认提供）
+3. `--define=DEB_VERSION=x.x.x` 命令行参数
+4. 默认值 `0.1.0`
+
+> 注意：环境变量路径不纳入 Bazel action 缓存键，仅修改 `DEB_VERSION` 可能不会重新触发
+> 构建。需要确定性、缓存正确的版本控制时，优先使用 `--define=DEB_VERSION=x.x.x`
+>（define 变更会使配置失效）或显式传入 `version = ...`。
 
 ## 工作原理
 
 `pkg_eros_deb` 宏会自动：
 
-1. 创建版本文件生成规则
-2. 为每个架构（amd64/arm64）创建 `pkg_deb` 规则
-3. 使用 `select()` 根据目标平台自动选择正确的架构
+1. 创建版本文件生成规则（`eros_deb_version`，按上述优先级解析版本）
+2. 创建**单个** `pkg_deb` 规则，其 `architecture` 通过 `select()` 根据目标平台的
+   `@platforms//cpu` 约束自动选择（`x86_64` -> `amd64`，`arm64` -> `arm64`，
+   其他 -> `all`）
 
 生成的目标：
-- `//:<name>_amd64` - x86_64 架构 deb 包
-- `//:<name>_arm64` - arm64 架构 deb 包
-- `//:<name>` - 根据平台自动选择的别名
+
+- `//:<name>` - 自动选择架构的单个 deb 包
+
+`pkg_eros_deb_multiarch` 宏会自动：
+
+1. 创建版本文件生成规则
+2. 为 `architectures` 列表中的每个架构创建一个带 `manual` 标签的 `pkg_deb`
+   （如 `//:<name>_amd64`、`//:<name>_arm64`）
+3. 创建一个 `<name>` filegroup 汇总所有架构目标
 
 `pkg_eros_tar` 宏会自动：
 

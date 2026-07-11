@@ -242,28 +242,26 @@ cmake --build "$BUILD_DIR" -j10
 
 ### 支持的平台配置
 
-| 配置名称 | 说明 |
-|----------|------|
-| `linux_x86_64` | x86_64 原生编译 |
-| `linux_x86_64_debug` | x86_64 原生编译 Debug |
-| `linux_x86_64_tsan` | x86_64 原生编译 ThreadSanitizer |
-| `linux_x86_64_msan` | x86_64 原生编译 MemorySanitizer |
-| `linux_x86_64_asan` | x86_64 原生编译 AddressSanitizer |
-| `linux_arm64` | ARM64 原生编译 |
-| `linux_arm64_debug` | ARM64 原生编译 Debug |
-| `linux_arm64_tsan` | ARM64 原生编译 ThreadSanitizer |
-| `linux_arm64_msan` | ARM64 原生编译 MemorySanitizer |
-| `linux_arm64_asan` | ARM64 原生编译 AddressSanitizer |
-| `linux_x86_64_cross_arm64` | x86_64 交叉编译到 ARM64 |
-| `linux_x86_64_cross_arm64_debug` | x86_64 交叉编译到 ARM64 Debug |
-| `linux_x86_64_cross_arm64_tsan` | x86_64 交叉编译到 ARM64 ThreadSanitizer |
-| `linux_x86_64_cross_arm64_msan` | x86_64 交叉编译到 ARM64 MemorySanitizer |
-| `linux_x86_64_cross_arm64_asan` | x86_64 交叉编译到 ARM64 AddressSanitizer |
-| `linux_arm64_cross_arm64` | ARM64 交叉编译到 ARM64（使用自定义 glibc）|
-| `linux_arm64_cross_arm64_debug` | ARM64 交叉编译到 ARM64 Debug |
-| `linux_arm64_cross_arm64_tsan` | ARM64 交叉编译到 ARM64 ThreadSanitizer |
-| `linux_arm64_cross_arm64_msan` | ARM64 交叉编译到 ARM64 MemorySanitizer |
-| `linux_arm64_cross_arm64_asan` | ARM64 交叉编译到 ARM64 AddressSanitizer |
+下表列出的"配置组合"是实际可用的 bazelrc `--config` 组合（平台配置可与构建模式 /
+sanitizer 配置叠加）。注意：`linux_x86_64_asan` 等是内部 `config_setting` 名称
+（用于 select() 匹配），**不是** bazelrc 配置；用户应使用 `--config=linux_x86_64
+--config=asan` 这样的组合。
+
+| 平台配置 | 构建模式 / Sanitizer 组合 | 说明 |
+|----------|---------------------------|------|
+| `--config=linux_x86_64` | （默认 Release） | x86_64 原生编译 |
+| `--config=linux_x86_64` | `--config=debug` | x86_64 原生编译 Debug |
+| `--config=linux_x86_64` | `--config=asan` | x86_64 原生编译 AddressSanitizer |
+| `--config=linux_x86_64` | `--config=tsan` | x86_64 原生编译 ThreadSanitizer |
+| `--config=linux_x86_64` | `--config=msan` | x86_64 原生编译 MemorySanitizer（需 Clang） |
+| `--config=linux_arm64` | （默认 Release / `--config=debug` / `--config=asan` / ...） | ARM64 原生编译 |
+| `--config=linux_x86_64_cross_arm64` | （默认 Release / `--config=debug` / `--config=asan` / ...） | x86_64 交叉编译到 ARM64 |
+| `--config=linux_arm64_cross_arm64` | （默认 Release / `--config=debug` / `--config=asan` / ...） | ARM64 交叉编译到 ARM64（自定义 glibc）|
+
+> Conan 的 sanitizer profile 由 `generate_files.py` 生成，覆盖 asan / tsan / msan
+> （见 `SANITIZERS`）。**ubsan 暂无 Conan profile**（`cmake_conan_forge` 也无对应
+> select 分支）；如需 ubsan，请在 `generate_files.py` 的 `SANITIZERS` 中补充并在
+> `cmake_conan_forge.bzl` 的 select 中加入对应分支。
 
 ### Profile 选择逻辑
 
@@ -421,9 +419,9 @@ cmake -S "$SOURCE_DIR" -B "$BUILD_DIR" \
 | 配置项 | Bazel | Conan Profile |
 |--------|-------|---------------|
 | C++ 标准 | `--cxxopt=-std=c++20` | `compiler.cppstd=gnu20` |
-| Release 模式 | `-O3 -DNDEBUG -g` | `build_type=Release` |
-| Debug 模式 | `-g -O0` + asan/ubsan | `build_type=Debug` |
-| Sanitizer | `--config=linux_x86_64_tsan/msan/asan` | 对应 sanitizer profile |
+| Release 模式 | `--config=release`（`-O3 -DNDEBUG -g`） | `build_type=Release` |
+| Debug 模式 | `--config=debug`（`-g -O0`） | `build_type=Debug` |
+| Sanitizer | `--config=linux_x86_64 --config=asan`（或 `tsan`/`msan`） | 对应 sanitizer profile |
 
 ## 构建命令
 
@@ -450,14 +448,17 @@ bazel build //:hello --config=linux_x86_64_cross_arm64 --config=release
 ### Sanitizer 构建
 
 ```bash
-# AddressSanitizer
-bazel build //:hello --config=linux_x86_64_asan
+# AddressSanitizer（平台配置 + sanitizer 配置组合）
+bazel build //:hello --config=linux_x86_64 --config=asan
 
 # ThreadSanitizer
-bazel build //:hello --config=linux_x86_64_tsan
+bazel build //:hello --config=linux_x86_64 --config=tsan
 
-# MemorySanitizer
-bazel build //:hello --config=linux_x86_64_msan
+# MemorySanitizer（通常需 Clang，GCC 支持有限）
+bazel build //:hello --config=linux_x86_64 --config=msan
+
+# UndefinedBehaviorSanitizer（注意：Conan 暂无 ubsan profile，见上文说明）
+bazel build //:hello --config=linux_x86_64 --config=ubsan
 ```
 
 ## 常见问题
@@ -507,7 +508,7 @@ project/
 
 ## 依赖
 
-- Bazel >= 6.0
+- Bazel 9.0（使用 bzlmod；项目依赖 `MODULE.bazel` 而非 `WORKSPACE`）
 - CMake >= 3.16
 - Conan 2.x
 - GCC 13 (aarch64-linux-gnu-gcc 用于交叉编译)

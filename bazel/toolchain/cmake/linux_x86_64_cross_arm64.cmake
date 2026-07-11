@@ -1,6 +1,4 @@
-# CMake toolchain file for cross-compilation from x86_64 to ARM64
-# Host: x86_64-linux-gnu
-# Target: aarch64-linux-gnu
+# CMake toolchain file for cross-compilation (x86_64 -> ARM64)
 
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR aarch64)

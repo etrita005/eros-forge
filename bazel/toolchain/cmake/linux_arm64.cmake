@@ -1,4 +1,4 @@
-# CMake toolchain file for native ARM64 compilation
+# CMake toolchain file for native aarch64 compilation
 # Target: aarch64-linux-gnu
 
 set(CMAKE_SYSTEM_NAME Linux)

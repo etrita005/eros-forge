@@ -20,3 +20,9 @@ register_toolchains(
     "//bazel/toolchain:cc-toolchain-x86_64-to-arm64",
     "//bazel/toolchain:cc-toolchain-arm64-to-arm64",
 )
+
+# Expose the host compiler/binutils as declared cc_toolchain inputs (copies of
+# the native and aarch64-linux-gnu cross tools). Required for remote cache
+# correctness: tool binary content becomes part of each cc action's digest.
+eros_host_tools = use_extension("//bazel/toolchain:host_tools.bzl", "eros_host_tools")
+use_repo(eros_host_tools, "eros_host_tools")

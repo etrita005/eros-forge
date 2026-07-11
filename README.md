@@ -39,15 +39,22 @@ try-import %workspace%/../../forge/bazel/bazelrc
 ### 基本构建命令
 
 ```bash
-# 原生编译（自动检测宿主机架构）
-bazel build //:all
+# 原生编译（自动检测宿主机架构：x86_64 主机 -> linux_x86_64，arm64 主机 -> linux_arm64）
+bazel build //:all --config=auto
+
+# 等价地，显式指定平台
+bazel build //:all --config=linux_x86_64
 
 # 使用 release 配置编译（优化级别 -O3，符号分离）
-bazel build //:all --config=release
+bazel build //:all --config=auto --config=release
 
 # 交叉编译到 ARM64
 bazel build //:all --config=linux_x86_64_cross_arm64
 ```
+
+`--config=auto` 通过 Bazel 平台约束（`@platforms//cpu`）自动匹配宿主机架构，并选择
+对应的原生 CMake 工具链 / Conan profile，无需显式指定 `--config=linux_<arch>`。交叉
+编译场景仍需使用显式的 `linux_*_cross_arm64` 配置。
 
 ## 环境初始化
 
@@ -169,6 +176,7 @@ Forge 提供以下构建配置：
 
 | 配置                                  | 说明              | 宿主机     | 目标机     |
 | ----------------------------------- | --------------- | ------- | ------- |
+| `--config=auto`                     | 原生编译，自动检测宿主机架构  | 宿主机    | 宿主机    |
 | `--config=linux_x86_64`             | x86\_64 原生编译    | x86\_64 | x86\_64 |
 | `--config=linux_arm64`              | ARM64 原生编译      | arm64   | arm64   |
 | `--config=linux_x86_64_cross_arm64` | 交叉编译            | x86\_64 | arm64   |
@@ -417,10 +425,20 @@ Forge 的工具链配置位于 `bazel/toolchain/` 目录：
 
 ```
 bazel/toolchain/
-├── BUILD.bazel              # 工具链定义
-├── cc_toolchain_config.bzl  # 工具链配置规则
-└── bazelrc                  # Bazel 配置
+├── BUILD.bazel              # 工具链定义、平台、config_setting
+├── cc_toolchain_config.bzl  # cc_toolchain_config 规则实现
+├── eros_cc_toolchains.bzl   # 表驱动的 cc_toolchain 宏（按 config_key 实例化）
+├── toolchain_data.bzl       # 【自动生成】单一配置表（编译器路径/GCC 版本/sysroot/三元组）
+├── generate_files.py        # 单一事实来源：生成 toolchain_data.bzl / conan/*.profile / cmake/*.cmake
+├── host_tools.bzl           # module_extension：把宿主编译器/binutils 声明为 cc action 输入
+├── cmake/                   # 【自动生成】CMake 工具链文件（linux_*.cmake）
+└── conan/                   # 【自动生成】Conan profile（*.profile）
 ```
+
+> 所有编译器路径、GCC 版本（13）、部署前缀（`/opt/eros`）、目标三元组都在
+> `generate_files.py` 中定义**一次**，由其生成 `toolchain_data.bzl`、Conan profile
+> 和 CMake 工具链文件。修改工具链时编辑 `generate_files.py` 后重新运行
+> `python3 bazel/toolchain/generate_files.py` 即可，无需手工同步多份文件。
 
 ### 工具链配置详情
 
@@ -488,58 +506,34 @@ build:release --features=separate_debug_info
 
 ### 自定义工具链
 
-如果需要添加新的工具链（如 RISC-V），在 `BUILD.bazel` 中添加：
+工具链由 `generate_files.py` 中的 `CONFIGS` 表驱动。如需添加新工具链（如 RISC-V）：
+
+1. 在 `bazel/toolchain/generate_files.py` 的 `CONFIGS` 中添加一个新条目（编译器前缀、
+   目标三元组、sysroot、builtin_includes、动态链接器等）。
+2. 运行 `python3 bazel/toolchain/generate_files.py` 重新生成 `toolchain_data.bzl`、
+   Conan profile 和 CMake 工具链文件。
+3. 在 `bazel/toolchain/BUILD.bazel` 中用 `eros_cc_toolchain` 宏实例化新工具链
+   （传入 `config_key` 指向新表条目，以及 `exec_compatible_with` / `target_compatible_with`）。
+4. 在 `MODULE.bazel` 的 `register_toolchains(...)` 中注册新工具链。
+5. 在 `bazel/bazelrc` 中添加对应的 `--config=linux_x86_64_cross_riscv64` 配置。
+
+例如在 `BUILD.bazel` 中：
 
 ```python
-cc_toolchain_config(
-    name = "linux_riscv64_config",
-    cpu = "riscv64",
-    compiler = "gcc",
-    target_system_name = "riscv64-linux-gnu",
-    target_libc = "glibc_2.27",
-    abi_version = "riscv64",
-    abi_libc_version = "2.27",
-    toolchain_identifier = "riscv64-linux-gnu-toolchain",
-    host_system_name = "x86_64-linux-gnu",
-    gcc_path = "/usr/bin/riscv64-linux-gnu-gcc",
-    gxx_path = "/usr/bin/riscv64-linux-gnu-g++",
-    extra_link_flags = [
-        "-L/usr/lib/gcc/riscv64-linux-gnu/13",
-        "-L/usr/riscv64-linux-gnu/lib",
-        "-lstdc++",
-        "-lgcc",
-        "-lm",
-        "-Wl,--rpath=/opt/eros/lib",
-        "-Wl,--dynamic-linker=/opt/eros/lib/ld-linux-riscv64-lp64d.so.1",
-    ],
-    # ... 其他配置
-)
-
-cc_toolchain(
-    name = "cc-toolchain-riscv64",
-    toolchain_config = ":linux_riscv64_config",
-    # ...
-)
-
-toolchain(
-    name = "cc-toolchain-riscv64-linux-cross",
-    exec_compatible_with = [
-        "@platforms//os:linux",
-        "@platforms//cpu:x86_64",
-    ],
-    target_compatible_with = [
-        "@platforms//os:linux",
-        "@platforms//cpu:riscv64",
-    ],
-    toolchain = ":cc-toolchain-riscv64",
-    toolchain_type = "@rules_cc//cc:toolchain_type",
+eros_cc_toolchain(
+    name = "cc-toolchain-riscv64-cross",
+    toolchain_name = "cc-toolchain-x86_64-to-riscv64",
+    config_key = "linux_x86_64_cross_riscv64",  # CONFIGS 中的新 key
+    exec_compatible_with = ["@platforms//os:linux", "@platforms//cpu:x86_64"],
+    target_compatible_with = ["@platforms//os:linux", "@platforms//cpu:riscv64"],
+    host_tools = "@eros_host_tools//:cross_riscv64_all",
 )
 ```
 
 然后在 `bazelrc` 中添加配置：
 
 ```bazel
-build:linux_x86_64_cross_riscv64 --platforms=@eros_forge//bazel/toolchain:linux_riscv64_platform
+build:linux_x86_64_cross_riscv64 --platforms=@eros_forge//bazel/toolchain:linux_riscv64_cross_platform
 build:linux_x86_64_cross_riscv64 --extra_toolchains=@eros_forge//bazel/toolchain:cc-toolchain-x86_64-to-riscv64
 ```
 
@@ -549,39 +543,44 @@ Forge 工具链内置了以下 Sanitizer 支持，用于检测内存错误和数
 
 ### 默认行为
 
-**测试模式**：`bazel test` 默认启用 **ASan + UBSan**
-
-**Debug 模式**：`--config=debug` 默认启用 **ASan + UBSan**
+Debug 模式（`--config=debug`）仅启用调试编译（`-g -O0`），**不**默认启用任何
+Sanitizer。Sanitizer 与 Debug 解耦，需要时显式叠加 `--config=asan` / `--config=ubsan`
+等（各 sanitizer 配置本身已设置 `compilation_mode=dbg`，因此 `--config=asan` 即可
+独立使用）。
 
 这意味着：
 
-- 运行测试时自动检测内存错误和未定义行为
-- Debug 构建时自动启用 Sanitizer，无需额外参数
+- Debug 构建默认不含 Sanitizer 插桩，便于纯净调试
+- 需要内存/线程/未定义行为检测时显式选择对应 `--config=<sanitizer>`
+- `--config=no_sanitizer` 可显式禁用所有 Sanitizer（用于性能测试基线）
 
 ### 可用的 Sanitizer 配置
 
 | 配置                      | Sanitizer       | 检测内容           |
 | ----------------------- | --------------- | -------------- |
-| 默认                      | ASan + UBSan    | 内存错误 + 未定义行为   |
-| `--config=tsan_test`    | ThreadSanitizer | 数据竞争、死锁（测试专用）  |
-| `--config=tsan`         | ThreadSanitizer | 数据竞争、死锁（构建专用）  |
-| `--config=msan`         | MemorySanitizer | 未初始化内存读取       |
-| `--config=no_sanitizer` | 无               | 禁用默认 Sanitizer |
+| `--config=asan`         | AddressSanitizer | 内存错误（缓冲区溢出、use-after-free 等） |
+| `--config=ubsan`        | UndefinedBehaviorSanitizer | 未定义行为（整数溢出、空指针等） |
+| `--config=tsan`         | ThreadSanitizer | 数据竞争、死锁 |
+| `--config=msan`         | MemorySanitizer | 未初始化内存读取（通常需 Clang） |
+| `--config=no_sanitizer` | 无               | 禁用所有 Sanitizer |
+
+> ASan 与 TSan/MSan 互斥；ASan + UBSan 可组合。各配置在 bazelrc 中通过
+> `--features=-<san>` 显式互斥，避免错误组合。
 
 ### 使用示例
 
 ```bash
-# 测试默认启用 ASan + UBSan
-bazel test //:tests --config=linux_arm64
+# Debug 构建（无 Sanitizer）
+bazel build //:my_app --config=linux_x86_64 --config=debug
 
-# Debug 构建默认启用 ASan + UBSan
-bazel build //:my_app --config=linux_arm64 --config=debug
+# 在 Debug 基础上叠加 AddressSanitizer
+bazel build //:my_app --config=linux_x86_64 --config=asan
 
-# 并发测试使用 ThreadSanitizer（替代默认的 ASan+UBSan）
-bazel test //:tests --config=linux_arm64 --config=tsan_test
+# ThreadSanitizer（自身已为 dbg 模式）
+bazel build //:my_app --config=linux_x86_64 --config=tsan
 
 # 性能测试时禁用 Sanitizer
-bazel build //:my_app --config=linux_arm64 --config=no_sanitizer
+bazel build //:my_app --config=linux_x86_64 --config=no_sanitizer
 ```
 
 ### 注意事项
@@ -591,9 +590,9 @@ bazel build //:my_app --config=linux_arm64 --config=no_sanitizer
 3. **性能影响**：Sanitizer 会显著降低程序性能（通常 2-10 倍）
 4. **内存开销**：ASan 会增加 2-3 倍内存使用
 5. **推荐场景**：
-   - 开发阶段：使用默认的 ASan + UBSan
-   - 并发测试：使用 `--config=tsan_test`
-   - 性能测试：使用 `--config=no_sanitizer`
+   - 开发阶段：`--config=debug`（纯净调试），需要时叠加 `--config=asan`
+   - 并发测试：`--config=tsan`
+   - 性能测试：`--config=no_sanitizer`
 
 ### Sanitizer 输出示例
 

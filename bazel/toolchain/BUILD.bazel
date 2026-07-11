@@ -1,5 +1,4 @@
-load(":cc_toolchain_config.bzl", "cc_toolchain_config")
-load("@rules_cc//cc:defs.bzl", "cc_toolchain")
+load(":eros_cc_toolchains.bzl", "eros_cc_toolchain")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -17,6 +16,11 @@ constraint_value(
     name = "glibc_cross",
     constraint_setting = ":glibc_type",
 )
+
+# =============================================================================
+# Config settings (driven by --define). Used by cmake_forge / cmake_conan_forge
+# select()s and by the platform/sanitizer selection logic.
+# =============================================================================
 
 config_setting(
     name = "linux_x86_64",
@@ -36,6 +40,32 @@ config_setting(
 config_setting(
     name = "linux_arm64_cross_arm64",
     define_values = {"eros_config": "linux_arm64_cross_arm64"},
+)
+
+# -----------------------------------------------------------------------------
+# Auto-detect native config (--config=auto sets eros_config=auto).
+#
+# These match ONLY when eros_config=auto AND the target platform's cpu constraint
+# is the host arch (the default target platform is the host platform, so for a
+# native build with no --platforms the cpu constraint reflects the host). They
+# never conflict with the explicit linux_<arch> configs above, because those set
+# eros_config to a concrete value rather than "auto".
+#
+# This is the idiomatic Bazel way to drive native selection from platform
+# constraints instead of an --define convention, and it makes the README's
+# "auto-detect host architecture" statement true.
+# -----------------------------------------------------------------------------
+
+config_setting(
+    name = "auto_x86_64",
+    define_values = {"eros_config": "auto"},
+    constraint_values = ["@platforms//cpu:x86_64"],
+)
+
+config_setting(
+    name = "auto_arm64",
+    define_values = {"eros_config": "auto"},
+    constraint_values = ["@platforms//cpu:arm64"],
 )
 
 config_setting(
@@ -88,6 +118,11 @@ config_setting(
 config_setting(
     name = "asan",
     define_values = {"eros_sanitizer": "asan"},
+)
+
+config_setting(
+    name = "ubsan",
+    define_values = {"eros_sanitizer": "ubsan"},
 )
 
 config_setting(
@@ -186,6 +221,10 @@ config_setting(
     },
 )
 
+# =============================================================================
+# Platforms
+# =============================================================================
+
 platform(
     name = "linux_x86_64_platform",
     constraint_values = [
@@ -213,265 +252,66 @@ platform(
     ],
 )
 
-cc_toolchain_config(
-    name = "linux_x86_64_config",
-    cpu = "x86_64",
-    compiler = "gcc",
-    target_system_name = "x86_64-linux-gnu",
-    target_libc = "glibc_native",
-    abi_version = "x86_64",
-    abi_libc_version = "native",
-    toolchain_identifier = "x86_64-linux-gnu-native-toolchain",
-    host_system_name = "x86_64-linux-gnu",
-    gcc_path = "/usr/bin/gcc",
-    gxx_path = "/usr/bin/g++",
-    ld_path = "/usr/bin/ld",
-    ar_path = "/usr/bin/ar",
-    as_path = "/usr/bin/as",
-    cpp_path = "/usr/bin/cpp",
-    gcov_path = "/usr/bin/gcov",
-    nm_path = "/usr/bin/nm",
-    objdump_path = "/usr/bin/objdump",
-    strip_path = "/usr/bin/strip",
-    objcopy_path = "/usr/bin/objcopy",
-    cxx_builtin_include_directories = [
-        "/usr/include/c++/13",
-        "/usr/include/x86_64-linux-gnu/c++/13",
-        "/usr/include/c++/13/backward",
-        "/usr/lib/gcc/x86_64-linux-gnu/13/include",
-        "/usr/lib/gcc/x86_64-linux-gnu/13/include-fixed",
-        "/usr/include/x86_64-linux-gnu",
-        "/usr/include",
-    ],
-)
+# =============================================================================
+# Toolchains (table-driven; tool binaries declared via @eros_host_tools)
+# =============================================================================
 
-cc_toolchain_config(
-    name = "linux_arm64_native_config",
-    cpu = "aarch64",
-    compiler = "gcc",
-    target_system_name = "aarch64-linux-gnu",
-    target_libc = "glibc_native",
-    abi_version = "aarch64",
-    abi_libc_version = "native",
-    toolchain_identifier = "aarch64-linux-gnu-native-toolchain",
-    host_system_name = "aarch64-linux-gnu",
-    gcc_path = "/usr/bin/gcc",
-    gxx_path = "/usr/bin/g++",
-    ld_path = "/usr/bin/ld",
-    ar_path = "/usr/bin/ar",
-    as_path = "/usr/bin/as",
-    cpp_path = "/usr/bin/cpp",
-    gcov_path = "/usr/bin/gcov",
-    nm_path = "/usr/bin/nm",
-    objdump_path = "/usr/bin/objdump",
-    strip_path = "/usr/bin/strip",
-    objcopy_path = "/usr/bin/objcopy",
-    cxx_builtin_include_directories = [
-        "/usr/include/c++/13",
-        "/usr/include/aarch64-linux-gnu/c++/13",
-        "/usr/include/c++/13/backward",
-        "/usr/lib/gcc-cross/aarch64-linux-gnu/13/include",
-        "/usr/lib/gcc-cross/aarch64-linux-gnu/13/include-fixed",
-        "/usr/aarch64-linux-gnu/include",
-        "/usr/include/aarch64-linux-gnu",
-        "/usr/include",
-    ],
-)
-
-cc_toolchain_config(
-    name = "linux_arm64_cross_from_x86_64_config",
-    cpu = "aarch64",
-    compiler = "gcc",
-    target_system_name = "aarch64-linux-gnu",
-    target_libc = "glibc_cross",
-    abi_version = "aarch64",
-    abi_libc_version = "cross",
-    toolchain_identifier = "aarch64-linux-gnu-cross-x86_64-toolchain",
-    host_system_name = "x86_64-linux-gnu",
-    gcc_path = "/usr/bin/aarch64-linux-gnu-gcc",
-    gxx_path = "/usr/bin/aarch64-linux-gnu-g++",
-    ld_path = "/usr/bin/aarch64-linux-gnu-ld",
-    ar_path = "/usr/bin/aarch64-linux-gnu-ar",
-    as_path = "/usr/bin/aarch64-linux-gnu-as",
-    cpp_path = "/usr/bin/aarch64-linux-gnu-cpp",
-    gcov_path = "/usr/bin/aarch64-linux-gnu-gcov",
-    nm_path = "/usr/bin/aarch64-linux-gnu-nm",
-    objdump_path = "/usr/bin/aarch64-linux-gnu-objdump",
-    strip_path = "/usr/bin/aarch64-linux-gnu-strip",
-    objcopy_path = "/usr/bin/aarch64-linux-gnu-objcopy",
-    extra_compile_flags = [
-        "-B/usr/bin/aarch64-linux-gnu-",
-    ],
-    extra_link_flags = [
-        "-L/usr/lib/gcc-cross/aarch64-linux-gnu/13",
-        "-L/usr/aarch64-linux-gnu/lib",
-        "-L/usr/lib/aarch64-linux-gnu",
-        "-lstdc++",
-        "-lgcc",
-        "-lm",
-        "-Wl,--rpath=/opt/eros/lib",
-        "-Wl,--dynamic-linker=/opt/eros/lib/ld-linux-aarch64.so.1",
-    ],
-    cxx_builtin_include_directories = [
-        "/usr/include/c++/13",
-        "/usr/include/aarch64-linux-gnu/c++/13",
-        "/usr/include/c++/13/backward",
-        "/usr/lib/gcc-cross/aarch64-linux-gnu/13/include",
-        "/usr/lib/gcc-cross/aarch64-linux-gnu/13/include-fixed",
-        "/usr/aarch64-linux-gnu/include",
-        "/usr/include/aarch64-linux-gnu",
-        "/usr/include",
-    ],
-)
-
-cc_toolchain_config(
-    name = "linux_arm64_cross_from_arm64_config",
-    cpu = "aarch64",
-    compiler = "gcc",
-    target_system_name = "aarch64-linux-gnu",
-    target_libc = "glibc_cross",
-    abi_version = "aarch64",
-    abi_libc_version = "cross",
-    toolchain_identifier = "aarch64-linux-gnu-cross-arm64-toolchain",
-    host_system_name = "aarch64-linux-gnu",
-    gcc_path = "/usr/bin/aarch64-linux-gnu-gcc",
-    gxx_path = "/usr/bin/aarch64-linux-gnu-g++",
-    ld_path = "/usr/bin/aarch64-linux-gnu-ld",
-    ar_path = "/usr/bin/aarch64-linux-gnu-ar",
-    as_path = "/usr/bin/aarch64-linux-gnu-as",
-    cpp_path = "/usr/bin/aarch64-linux-gnu-cpp",
-    gcov_path = "/usr/bin/aarch64-linux-gnu-gcov",
-    nm_path = "/usr/bin/aarch64-linux-gnu-nm",
-    objdump_path = "/usr/bin/aarch64-linux-gnu-objdump",
-    strip_path = "/usr/bin/aarch64-linux-gnu-strip",
-    objcopy_path = "/usr/bin/aarch64-linux-gnu-objcopy",
-    extra_compile_flags = [
-        "-B/usr/bin/aarch64-linux-gnu-",
-    ],
-    extra_link_flags = [
-        "-L/usr/lib/gcc/aarch64-linux-gnu/13",
-        "-L/usr/aarch64-linux-gnu/lib",
-        "-L/usr/lib/aarch64-linux-gnu",
-        "-lstdc++",
-        "-lgcc",
-        "-lm",
-        "-Wl,--rpath=/opt/eros/lib",
-        "-Wl,--dynamic-linker=/opt/eros/lib/ld-linux-aarch64.so.1",
-    ],
-    cxx_builtin_include_directories = [
-        "/usr/include/c++/13",
-        "/usr/include/aarch64-linux-gnu/c++/13",
-        "/usr/include/c++/13/backward",
-        "/usr/lib/gcc/aarch64-linux-gnu/13/include",
-        "/usr/lib/gcc/aarch64-linux-gnu/13/include-fixed",
-        "/usr/aarch64-linux-gnu/include",
-        "/usr/include/aarch64-linux-gnu",
-        "/usr/include",
-    ],
-)
-
-filegroup(name = "empty")
-
-filegroup(
-    name = "all_tools",
-    srcs = [":empty"],
-)
-
-cc_toolchain(
+# Native x86_64: host=x86_64, target=x86_64
+eros_cc_toolchain(
     name = "cc-toolchain-x86_64",
-    toolchain_config = ":linux_x86_64_config",
-    all_files = ":all_tools",
-    compiler_files = ":all_tools",
-    dwp_files = ":empty",
-    linker_files = ":all_tools",
-    objcopy_files = ":all_tools",
-    strip_files = ":all_tools",
-    supports_param_files = 1,
+    toolchain_name = "cc-toolchain-linux-x86_64",
+    config_key = "linux_x86_64",
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+        ":glibc_native",
+    ],
+    host_tools = "@eros_host_tools//:native_all",
 )
 
-cc_toolchain(
+# Native ARM64: host=arm64, target=arm64
+eros_cc_toolchain(
     name = "cc-toolchain-arm64-native",
-    toolchain_config = ":linux_arm64_native_config",
-    all_files = ":all_tools",
-    compiler_files = ":all_tools",
-    dwp_files = ":empty",
-    linker_files = ":all_tools",
-    objcopy_files = ":all_tools",
-    strip_files = ":all_tools",
-    supports_param_files = 1,
+    toolchain_name = "cc-toolchain-linux-arm64",
+    config_key = "linux_arm64",
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:arm64",
+    ],
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:arm64",
+        ":glibc_native",
+    ],
+    host_tools = "@eros_host_tools//:native_all",
 )
 
-cc_toolchain(
+# Cross: x86_64 host -> arm64 target (custom glibc)
+eros_cc_toolchain(
     name = "cc-toolchain-arm64-cross-from-x86_64",
-    toolchain_config = ":linux_arm64_cross_from_x86_64_config",
-    all_files = ":all_tools",
-    compiler_files = ":all_tools",
-    dwp_files = ":empty",
-    linker_files = ":all_tools",
-    objcopy_files = ":all_tools",
-    strip_files = ":all_tools",
-    supports_param_files = 1,
+    toolchain_name = "cc-toolchain-x86_64-to-arm64",
+    config_key = "linux_x86_64_cross_arm64",
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:arm64",
+        ":glibc_cross",
+    ],
+    host_tools = "@eros_host_tools//:cross_arm64_all",
 )
 
-cc_toolchain(
+# Cross: arm64 host -> arm64 target (custom glibc)
+eros_cc_toolchain(
     name = "cc-toolchain-arm64-cross-from-arm64",
-    toolchain_config = ":linux_arm64_cross_from_arm64_config",
-    all_files = ":all_tools",
-    compiler_files = ":all_tools",
-    dwp_files = ":empty",
-    linker_files = ":all_tools",
-    objcopy_files = ":all_tools",
-    strip_files = ":all_tools",
-    supports_param_files = 1,
-)
-
-toolchain(
-    name = "cc-toolchain-linux-x86_64",
-    exec_compatible_with = [
-        "@platforms//os:linux",
-        "@platforms//cpu:x86_64",
-    ],
-    target_compatible_with = [
-        "@platforms//os:linux",
-        "@platforms//cpu:x86_64",
-        ":glibc_native",
-    ],
-    toolchain = ":cc-toolchain-x86_64",
-    toolchain_type = "@rules_cc//cc:toolchain_type",
-)
-
-toolchain(
-    name = "cc-toolchain-linux-arm64",
-    exec_compatible_with = [
-        "@platforms//os:linux",
-        "@platforms//cpu:arm64",
-    ],
-    target_compatible_with = [
-        "@platforms//os:linux",
-        "@platforms//cpu:arm64",
-        ":glibc_native",
-    ],
-    toolchain = ":cc-toolchain-arm64-native",
-    toolchain_type = "@rules_cc//cc:toolchain_type",
-)
-
-toolchain(
-    name = "cc-toolchain-x86_64-to-arm64",
-    exec_compatible_with = [
-        "@platforms//os:linux",
-        "@platforms//cpu:x86_64",
-    ],
-    target_compatible_with = [
-        "@platforms//os:linux",
-        "@platforms//cpu:arm64",
-        ":glibc_cross",
-    ],
-    toolchain = ":cc-toolchain-arm64-cross-from-x86_64",
-    toolchain_type = "@rules_cc//cc:toolchain_type",
-)
-
-toolchain(
-    name = "cc-toolchain-arm64-to-arm64",
+    toolchain_name = "cc-toolchain-arm64-to-arm64",
+    config_key = "linux_arm64_cross_arm64",
     exec_compatible_with = [
         "@platforms//os:linux",
         "@platforms//cpu:arm64",
@@ -481,6 +321,5 @@ toolchain(
         "@platforms//cpu:arm64",
         ":glibc_cross",
     ],
-    toolchain = ":cc-toolchain-arm64-cross-from-arm64",
-    toolchain_type = "@rules_cc//cc:toolchain_type",
+    host_tools = "@eros_host_tools//:cross_arm64_all",
 )

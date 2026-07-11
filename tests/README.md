@@ -12,19 +12,26 @@
 
 **测试统计**:
 - 测试项目数：3
-- 测试用例总数：48
+- 测试用例总数：48+（含 deb 打包冒烟测试）
 - 自动化检查：制品结果验证 + 编译选项验证
 
-详细测试用例清单请参考：[TEST_CASES.md](TEST_CASES.md)
+详细测试用例清单请参考：[TEST_GUIDE.md](TEST_GUIDE.md)
+
+> 测试框架已重构：所有平台/工具映射来自单一配置表
+> (`test_config_data.json`，由 `gen_test_config.py` 从工具链源 `generate_files.py`
+> 生成)，公共验证逻辑集中在 `forge_test_lib.sh`，各项目脚本只传入"项目路径 + 期望配置"。
+> 编译选项通过 `bazel aquery` / `cquery` 获取（而非 grep 构建日志），且不再每个配置都
+> `bazel clean`。
 
 ## 测试项目
 
 ### 1. Bazel9 C++ 简单项目测试
 - 位置：`tests/bazel_simple/`
-- 测试内容：纯 Bazel C++ 项目的构建和验证
-- 测试用例数：16 (4 个平台配置 + 2 个构建模式 + 4 个 Sanitizer + 4 个依赖消费)
+- 测试内容：纯 Bazel C++ 项目的构建和验证 + deb 打包冒烟测试
+- 测试用例数：16 (4 个平台配置 + 2 个构建模式 + 4 个 Sanitizer + 4 个依赖消费) + deb 打包
 - 验证项：制品结果、编译选项
 - 依赖消费测试：`consumer/` 子目录验证导出的静态库、动态库和头文件可被其他模块消费
+- Deb 打包测试：`test_configs/test_deb_packaging.sh` 验证 `pkg_eros_deb` 架构自动选择与版本解析
 
 ### 2. Bazel9 + CMake 项目测试
 - 位置：`tests/bazel_cmake/`
@@ -53,10 +60,16 @@
 - `--config=release`: 发布模式（-O3 优化，符号分离）
 
 ### Sanitizer 配置
-- `--config=tsan_test`: ThreadSanitizer（测试专用）
-- `--config=tsan`: ThreadSanitizer（构建专用）
-- `--config=msan`: MemorySanitizer
+- `--config=asan`: AddressSanitizer
+- `--config=ubsan`: UndefinedBehaviorSanitizer
+- `--config=tsan`: ThreadSanitizer
+- `--config=msan`: MemorySanitizer（通常需 Clang）
 - `--config=no_sanitizer`: 禁用 Sanitizer
+
+> Sanitizer 与 Debug 解耦：`--config=debug` 仅 `-g -O0`，不默认启用任何 sanitizer。
+> 各 sanitizer 配置自身已设置 `compilation_mode=dbg`，因此 `--config=asan` 可独立使用。
+> 平台配置与 sanitizer 叠加使用，例如 `--config=linux_x86_64 --config=asan`。
+> ASan 与 TSan/MSan 互斥（bazelrc 中通过 `--features=-<san>` 显式互斥）；ASan + UBSan 可组合。
 
 ## 环境要求
 

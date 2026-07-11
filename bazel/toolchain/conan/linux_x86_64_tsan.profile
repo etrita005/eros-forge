@@ -1,4 +1,4 @@
-# ThreadSanitizer profile for x86_64 native compilation
+# ThreadSanitizer profile for linux_x86_64 native compilation
 # Detects data races and deadlocks
 
 [settings]

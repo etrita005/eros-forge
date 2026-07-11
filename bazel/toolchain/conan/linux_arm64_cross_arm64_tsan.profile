@@ -1,4 +1,4 @@
-# ThreadSanitizer profile for ARM64 cross-compilation
+# ThreadSanitizer profile for ARM64 -> ARM64 (with custom glibc) cross-compilation
 # Detects data races and deadlocks
 
 [settings]

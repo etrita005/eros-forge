@@ -1,0 +1,54 @@
+{
+  "linux_arm64": {
+    "compiler": "/usr/bin/g++",
+    "compiler_c": "/usr/bin/gcc",
+    "cpu": "aarch64",
+    "dynamic_linker": "/lib/ld-linux-aarch64.so.1",
+    "file_arch": "ARM aarch64",
+    "is_cross": false,
+    "nm": "nm",
+    "objdump": "objdump",
+    "readelf": "readelf",
+    "rpath": "",
+    "strip": "strip"
+  },
+  "linux_arm64_cross_arm64": {
+    "compiler": "/usr/bin/aarch64-linux-gnu-g++",
+    "compiler_c": "/usr/bin/aarch64-linux-gnu-gcc",
+    "cpu": "aarch64",
+    "dynamic_linker": "/opt/eros/lib/ld-linux-aarch64.so.1",
+    "file_arch": "ARM aarch64",
+    "is_cross": true,
+    "nm": "/usr/bin/aarch64-linux-gnu-nm",
+    "objdump": "/usr/bin/aarch64-linux-gnu-objdump",
+    "readelf": "/usr/bin/aarch64-linux-gnu-readelf",
+    "rpath": "/opt/eros/lib",
+    "strip": "/usr/bin/aarch64-linux-gnu-strip"
+  },
+  "linux_x86_64": {
+    "compiler": "/usr/bin/g++",
+    "compiler_c": "/usr/bin/gcc",
+    "cpu": "x86_64",
+    "dynamic_linker": "/lib64/ld-linux-x86-64.so.2",
+    "file_arch": "x86-64",
+    "is_cross": false,
+    "nm": "nm",
+    "objdump": "objdump",
+    "readelf": "readelf",
+    "rpath": "",
+    "strip": "strip"
+  },
+  "linux_x86_64_cross_arm64": {
+    "compiler": "/usr/bin/aarch64-linux-gnu-g++",
+    "compiler_c": "/usr/bin/aarch64-linux-gnu-gcc",
+    "cpu": "aarch64",
+    "dynamic_linker": "/opt/eros/lib/ld-linux-aarch64.so.1",
+    "file_arch": "ARM aarch64",
+    "is_cross": true,
+    "nm": "/usr/bin/aarch64-linux-gnu-nm",
+    "objdump": "/usr/bin/aarch64-linux-gnu-objdump",
+    "readelf": "/usr/bin/aarch64-linux-gnu-readelf",
+    "rpath": "/opt/eros/lib",
+    "strip": "/usr/bin/aarch64-linux-gnu-strip"
+  }
+}

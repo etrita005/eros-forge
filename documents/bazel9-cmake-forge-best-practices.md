@@ -44,14 +44,22 @@ thirdparty/
 **extensions.bzl**:
 ```python
 def _library_source_impl(rctx):
-    # Clone source code
-    result = rctx.execute(["git", "clone", "<repository_url>", "."])
+    # Clone source code (including submodules)
+    result = rctx.execute(["git", "clone", "--recurse-submodules", "<repository_url>", "."])
     if result.return_code != 0:
         fail("Failed to clone repository")
-    
-    # Remove BUILD files in submodules to prevent Bazel conflicts
-    rctx.execute(["find", ".", "-name", "BUILD*", "-type", "f", "-delete"])
-    
+
+    # Submodules may ship their own BUILD/BUILD.bazel files, which conflict with
+    # Bazel's package boundary (glob skips directories containing a BUILD file).
+    # RENAME them to a backup extension instead of deleting, so user/valid BUILD
+    # files are never lost and the change is reversible/auditable. Only rename
+    # BUILD files inside vendored subdirectories, not the project's own.
+    rctx.execute([
+        "bash", "-c",
+        "find . -path ./.git -prune -o \\( -name BUILD -o -name BUILD.bazel \\) -type f -print0 "
+        "| while IFS= read -r -d '' f; do mv \"$f\" \"$f.bak\"; done",
+    ])
+
     # Create BUILD file with :all filegroup
     rctx.file("BUILD.bazel", """package(default_visibility = ["//visibility:public"])
 filegroup(name = "all", srcs = glob(["**/*"], exclude = ["**/.git/**", "**/.github/**", "**/*.pyc", "**/__pycache__/**"]))
@@ -150,21 +158,29 @@ cmake_forge(
 
 **问题**：如果 Git 仓库包含子模块，且子模块有 `BUILD.bazel` 文件，Bazel 的 `glob` 会跳过这些目录。
 
-**解决方案**：在 `repository_rule` 中删除所有子目录的 BUILD 文件：
+**解决方案**：在 `repository_rule` 中把子目录的 BUILD 文件**重命名**为 `.bak`
+（而不是 `find ... -delete`），避免误删用户源码中有效的 BUILD 文件，且便于审计恢复：
+
 ```python
-rctx.execute(["find", ".", "-name", "BUILD*", "-type", "f", "-delete"])
+rctx.execute([
+    "bash", "-c",
+    "find . -path ./.git -prune -o \\( -name BUILD -o -name BUILD.bazel \\) -type f -print0 "
+    "| while IFS= read -r -d '' f; do mv \"$f\" \"$f.bak\"; done",
+])
 ```
+
+> 只处理 vendored 子目录中的 BUILD 文件；不要删除项目自身的 BUILD 文件。
 
 ### 2. 为什么不能用 `git_repository`
 
 在 bzlmod 中，`git_repository` 的限制：
-- 不执行 `git submodule update`
+- 不执行 `git submodule update`（需用 `git clone --recurse-submodules`）
 - 无法处理已提交子模块代码但保留 `BUILD.bazel` 的仓库
 - Bazel 的 `glob` 会跳过有 `BUILD.bazel` 的子目录
 
 **必须使用 `repository_rule`** 来：
-- 完全控制 clone 过程
-- 删除冲突的 BUILD 文件
+- 完全控制 clone 过程（含子模块）
+- 重命名（而非删除）冲突的 BUILD 文件
 - 创建统一的 filegroup
 
 ### 3. CMake 配置选项

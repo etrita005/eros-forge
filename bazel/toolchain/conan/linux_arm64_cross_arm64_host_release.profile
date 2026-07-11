@@ -1,5 +1,5 @@
-# Host profile for ARM64 -> ARM64 cross-compilation (with custom glibc)
-# This describes the TARGET machine (ARM64 with custom glibc)
+# Host profile for ARM64 -> ARM64 (with custom glibc) cross-compilation
+# This describes the TARGET machine (ARM64)
 
 [settings]
 arch=armv8

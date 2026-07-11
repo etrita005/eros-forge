@@ -29,6 +29,8 @@ def cmake_forge(name, **kwargs):
             "@eros_forge//bazel/toolchain:linux_arm64": ["@eros_forge//bazel/toolchain/cmake:linux_arm64.cmake"],
             "@eros_forge//bazel/toolchain:linux_x86_64_cross_arm64": ["@eros_forge//bazel/toolchain/cmake:linux_x86_64_cross_arm64.cmake"],
             "@eros_forge//bazel/toolchain:linux_arm64_cross_arm64": ["@eros_forge//bazel/toolchain/cmake:linux_arm64_cross_arm64.cmake"],
+            "@eros_forge//bazel/toolchain:auto_x86_64": ["@eros_forge//bazel/toolchain/cmake:linux_x86_64.cmake"],
+            "@eros_forge//bazel/toolchain:auto_arm64": ["@eros_forge//bazel/toolchain/cmake:linux_arm64.cmake"],
             "//conditions:default": [],
         }),
         visibility = ["//visibility:private"],

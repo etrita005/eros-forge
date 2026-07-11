@@ -1,4 +1,4 @@
-# Build profile for native x86_64 compilation
+# Build profile for linux_x86_64 native compilation
 # Same as host profile for native builds
 
 [settings]

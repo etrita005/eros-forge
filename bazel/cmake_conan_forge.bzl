@@ -24,54 +24,69 @@ load("@rules_cc//cc:defs.bzl", "CcInfo", "cc_common")
 
 def _conan_install_impl(ctx):
     """Implementation of conan_install rule.
-    
-    Uses predefined Conan profiles from eros_forge//bazel/toolchain/conan.
-    For cross-compilation, uses separate build and host profiles.
-    For native compilation, build and host profiles are the same.
+
+    Runs `conan install` with an isolated CONAN_HOME (so the user's ~/.conan2
+    cache is never touched or polluted) and with the conanfile copied into the
+    output directory. Copying the conanfile means Conan treats the output dir
+    (not the source tree) as the project root, so it never writes
+    CMakeUserPresets.json into the source tree. The conan executable is a
+    declared action input (copied into @eros_host_tools at fetch time).
     """
     output_dir = ctx.actions.declare_directory("conan_output_{}".format(ctx.attr.name))
-    
+
     host_profile = ctx.file.host_profile
     build_profile = ctx.file.build_profile
-    
+    conan_tool = ctx.executable.conan_tool
+
     script = ctx.actions.declare_file("conan_install_{}.sh".format(ctx.attr.name))
-    
-    conan_profile_args = "--profile:host={} --profile:build={}".format(
-        host_profile.path,
-        build_profile.path,
-    )
-    
+
     script_content = """#!/bin/bash
 set -e
 
+CONAN_TOOL="$1"
+CONANFILE_SRC="$2"
+HOST_PROFILE="$3"
+BUILD_PROFILE="$4"
+OUTPUT_DIR="$5"
+
+# Resolve all input paths to absolute now (before any cd), since they are
+# supplied relative to the action execroot.
+CONAN_TOOL="$(realpath "$CONAN_TOOL")"
+CONANFILE_SRC="$(realpath "$CONANFILE_SRC")"
+HOST_PROFILE="$(realpath "$HOST_PROFILE")"
+BUILD_PROFILE="$(realpath "$BUILD_PROFILE")"
+OUTPUT_DIR="$(realpath "$OUTPUT_DIR")"
+
+# Ensure HOME is set: the conan entry script imports the conan Python package
+# from the user's site-packages, which Python only locates when HOME is set.
 if [ -z "$HOME" ]; then
-    HOME=$(getent passwd "$(whoami)" | cut -d: -f6)
+    HOME=$(getent passwd "$(whoami)" 2>/dev/null | cut -d: -f6)
 fi
 if [ -z "$HOME" ]; then
     HOME="/tmp"
 fi
 export HOME
 
-CONAN_CMD=""
-for path in "$HOME/.local/bin/conan" "/usr/local/bin/conan" "/usr/bin/conan" "conan"; do
-    if [ -x "$path" ]; then
-        CONAN_CMD="$path"
-        break
-    fi
-done
+# Isolate Conan's cache inside the action workdir so the user's ~/.conan2 is
+# never read or written. This makes the action self-contained (no shared,
+# mutable host state) which is required for correct remote caching.
+export CONAN_HOME="$PWD/_conan_home_{name}"
+mkdir -p "$CONAN_HOME"
 
-if [ -z "$CONAN_CMD" ]; then
-    echo "Error: conan command not found"
-    exit 1
-fi
+# Copy the conanfile into the output dir so Conan uses the output dir as the
+# project root (no CMakeLists.txt there => no CMakeUserPresets.json written,
+# and the source tree is never modified).
+CONANFILE_BASENAME="$(basename "$CONANFILE_SRC")"
+cp "$CONANFILE_SRC" "$OUTPUT_DIR/$CONANFILE_BASENAME"
 
-OUTPUT_DIR="$1"
-CONANFILE="$2"
-PROFILE_ARGS="$3"
-
-echo "Running: $CONAN_CMD install $CONANFILE --output-folder=$OUTPUT_DIR $PROFILE_ARGS --build=missing"
-"$CONAN_CMD" install "$CONANFILE" --output-folder="$OUTPUT_DIR" $PROFILE_ARGS --build=missing
-"""
+cd "$OUTPUT_DIR"
+echo "Running: $CONAN_TOOL install ./$CONANFILE_BASENAME --output-folder=$OUTPUT_DIR --build=missing --profile:host=$HOST_PROFILE --profile:build=$BUILD_PROFILE"
+"$CONAN_TOOL" install "./$CONANFILE_BASENAME" \
+    --output-folder="$OUTPUT_DIR" \
+    --build=missing \
+    --profile:host="$HOST_PROFILE" \
+    --profile:build="$BUILD_PROFILE"
+""".format(name = ctx.attr.name)
 
     ctx.actions.write(
         output = script,
@@ -79,17 +94,19 @@ echo "Running: $CONAN_CMD install $CONANFILE --output-folder=$OUTPUT_DIR $PROFIL
         is_executable = True,
     )
 
-    inputs = [ctx.file.conanfile, script, host_profile, build_profile]
-    
+    inputs = [ctx.file.conanfile, script, host_profile, build_profile, conan_tool]
+
     ctx.actions.run_shell(
         outputs = [output_dir],
         inputs = inputs,
-        command = "bash {} {} {} '{}'".format(
-            script.path,
-            output_dir.path,
+        arguments = [
+            conan_tool.path,
             ctx.file.conanfile.path,
-            conan_profile_args,
-        ),
+            host_profile.path,
+            build_profile.path,
+            output_dir.path,
+        ],
+        command = "bash {} \"$@\"".format(script.path),
         mnemonic = "ConanInstall",
         progress_message = "Running conan install for {}".format(ctx.attr.name),
         use_default_shell_env = True,
@@ -114,6 +131,13 @@ conan_install = rule(
         "build_profile": attr.label(
             mandatory = True,
             allow_single_file = [".profile"],
+        ),
+        "conan_tool": attr.label(
+            default = Label("@eros_host_tools//:conan_tool"),
+            allow_single_file = True,
+            executable = True,
+            cfg = "exec",
+            doc = "Conan executable (declared action input, from @eros_host_tools).",
         ),
     },
 )
@@ -198,6 +222,8 @@ STRIP_TOOL="$9"
 CMAKE_PRESET="${10}"
 HEADERS_DIR="${11}"
 
+# Conan output dir is a declared action input; reference it by absolute path.
+# The source tree is NEVER written to (no symlinks, no CMakeUserPresets.json).
 CONAN_OUTPUT_DIR_ABS="$(pwd)/$CONAN_OUTPUT_DIR"
 
 echo "Source dir: $SOURCE_DIR"
@@ -206,33 +232,9 @@ echo "Conan output dir: $CONAN_OUTPUT_DIR_ABS"
 echo "CMake preset: $CMAKE_PRESET"
 echo "Headers dir: $HEADERS_DIR"
 
-# Create symlinks to ALL Conan-generated files in source directory
-# This is needed because CMake preset uses relative paths
-for f in "$CONAN_OUTPUT_DIR_ABS"/*; do
-    fname=$(basename "$f")
-    ln -sf "$f" "$SOURCE_DIR/$fname"
-done
-
-# Handle cmake_layout case: CMakePresets.json may be in subdirectories
-for f in $(find "$CONAN_OUTPUT_DIR_ABS" -name "CMakePresets.json" -o -name "ConanPresets.json" 2>/dev/null); do
-    rel_path="${f#$CONAN_OUTPUT_DIR_ABS/}"
-    target="$SOURCE_DIR/$rel_path"
-    mkdir -p "$(dirname "$target")"
-    rm -f "$target"
-    cp -f "$f" "$target"
-done
-
-# Also copy CMakePresets.json to current working directory for cmake --preset
-for f in "$CONAN_OUTPUT_DIR_ABS"/CMakePresets.json "$CONAN_OUTPUT_DIR_ABS"/ConanPresets.json; do
-    if [ -f "$f" ]; then
-        rm -f "$(pwd)/CMakePresets.json"
-        cp -f "$f" "$(pwd)/CMakePresets.json"
-        break
-    fi
-done
-
-# Configure using Conan toolchain directly (avoiding CMakePresets.json issues with symlinks)
-# Append Conan output dir to CMAKE_FIND_ROOT_PATH for cross-compilation
+# Configure using the Conan-generated toolchain directly. find_package() (e.g.
+# fmt) resolves via CMAKE_PREFIX_PATH pointing at the Conan output dir, so no
+# files need to be copied or symlinked into the source tree.
 if [ "$CMAKE_PRESET" = "conan-release" ]; then
     CMAKE_BUILD_TYPE="Release"
 else
@@ -243,6 +245,7 @@ cmake -S "$SOURCE_DIR" -B "$BUILD_DIR" \
     -DCMAKE_BUILD_TYPE="$CMAKE_BUILD_TYPE" \
     -DCMAKE_POLICY_DEFAULT_CMP0091=NEW \
     -G "Unix Makefiles" \
+    -DCMAKE_PREFIX_PATH:PATH="$CONAN_OUTPUT_DIR_ABS" \
     -DCMAKE_FIND_ROOT_PATH:PATH="$CONAN_OUTPUT_DIR_ABS" \
     ${CMAKE_INCLUDE_PATH:+-DCMAKE_INCLUDE_PATH="$CMAKE_INCLUDE_PATH"} \
     ${CMAKE_LIBRARY_PATH:+-DCMAKE_LIBRARY_PATH="$CMAKE_LIBRARY_PATH"}
@@ -253,7 +256,7 @@ cmake --build "$BUILD_DIR" -j10
 # Copy executable
 if [ -n "$OUTPUT_EXE" ] && [ "$OUTPUT_EXE" != "" ]; then
     find "$BUILD_DIR" -name "$TARGET_NAME" -type f -executable -exec cp {} "$OUTPUT_EXE" \\;
-    
+
     # Strip binary in release mode
     if [ "$STRIP_BINARY" = "true" ] && [ -f "$OUTPUT_EXE" ]; then
         if [ -n "$STRIP_TOOL" ] && [ "$STRIP_TOOL" != "" ]; then
@@ -276,7 +279,7 @@ for lib in $SHARED_LIBS; do
     # First try exact match (may be a symlink)
     exact_match=$(find "$BUILD_DIR" -name "$lib" -print -quit)
     if [ -n "$exact_match" ]; then
-        # If it's a symlink, resolve it and copy the real file, then recreate symlinks
+        # If it's a symlink, resolve it and copy the real file
         if [ -L "$exact_match" ]; then
             real_file=$(readlink -f "$exact_match")
             cp -f "$real_file" "$(dirname "$BUILD_DIR")/$lib"
@@ -313,22 +316,6 @@ if [ -n "$OUTPUT_EXE" ] && [ ! -f "$OUTPUT_EXE" ]; then
     echo "#!/bin/bash" > "$OUTPUT_EXE"
     chmod +x "$OUTPUT_EXE"
 fi
-
-# Cleanup
-for f in "$CONAN_OUTPUT_DIR_ABS"/*; do
-    fname=$(basename "$f")
-    rm -f "$SOURCE_DIR/$fname"
-done
-
-# Cleanup cmake_layout symlinks
-for f in $(find "$CONAN_OUTPUT_DIR_ABS" -name "CMakePresets.json" -o -name "ConanPresets.json" 2>/dev/null); do
-    rel_path="${f#$CONAN_OUTPUT_DIR_ABS/}"
-    target="$SOURCE_DIR/$rel_path"
-    rm -f "$target"
-done
-
-# Cleanup CMakePresets.json from current working directory
-rm -f "$(pwd)/CMakePresets.json"
 """
 
     ctx.actions.write(
@@ -514,6 +501,8 @@ def cmake_conan_forge(name, conanfile, cmake_lists, srcs, target_name = None,
         "@eros_forge//bazel/toolchain:linux_arm64_debug": "@eros_forge//bazel/toolchain/conan:linux_arm64_debug",
         "@eros_forge//bazel/toolchain:linux_arm64": "@eros_forge//bazel/toolchain/conan:linux_arm64_release",
         "@eros_forge//bazel/toolchain:linux_x86_64_debug": "@eros_forge//bazel/toolchain/conan:linux_x86_64_debug",
+        "@eros_forge//bazel/toolchain:auto_arm64": "@eros_forge//bazel/toolchain/conan:linux_arm64_release",
+        "@eros_forge//bazel/toolchain:auto_x86_64": "@eros_forge//bazel/toolchain/conan:linux_x86_64_release",
         "//conditions:default": "@eros_forge//bazel/toolchain/conan:linux_x86_64_release",
     })
     
@@ -537,6 +526,8 @@ def cmake_conan_forge(name, conanfile, cmake_lists, srcs, target_name = None,
         "@eros_forge//bazel/toolchain:linux_arm64_debug": "@eros_forge//bazel/toolchain/conan:linux_arm64_debug",
         "@eros_forge//bazel/toolchain:linux_arm64": "@eros_forge//bazel/toolchain/conan:linux_arm64_build_release",
         "@eros_forge//bazel/toolchain:linux_x86_64_debug": "@eros_forge//bazel/toolchain/conan:linux_x86_64_debug",
+        "@eros_forge//bazel/toolchain:auto_arm64": "@eros_forge//bazel/toolchain/conan:linux_arm64_build_release",
+        "@eros_forge//bazel/toolchain:auto_x86_64": "@eros_forge//bazel/toolchain/conan:linux_x86_64_build_release",
         "//conditions:default": "@eros_forge//bazel/toolchain/conan:linux_x86_64_build_release",
     })
 

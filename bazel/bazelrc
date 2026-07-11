@@ -2,7 +2,7 @@
 # Import this file in project .bazelrc: try-import %workspace%/../../forge/bazel/bazelrc
 
 # =============================================================================
-# Build Configurations
+# Platform Configurations
 # =============================================================================
 #
 # Supported configurations:
@@ -10,16 +10,27 @@
 # - build:linux_arm64               : Native ARM64 compilation (host=arm64, target=arm64)
 # - build:linux_x86_64_cross_arm64  : Cross-compilation (host=x86_64, target=arm64)
 # - build:linux_arm64_cross_arm64   : Cross-compilation (host=arm64, target=arm64)
+# - build:auto                      : Native compilation that auto-detects the host
+#                                     architecture via Bazel platform constraints
+#                                     (@platforms//cpu). Selects the matching
+#                                     native CMake toolchain / Conan profile without
+#                                     requiring an explicit --config=linux_<arch>.
+#                                     For cross-compilation, use the explicit
+#                                     linux_*_cross_arm64 configs instead.
 #
 # Usage examples:
+#   bazel build //... --config=auto                 # native, host-arch detected
 #   bazel build //... --config=linux_x86_64
 #   bazel build //... --config=linux_arm64
 #   bazel build //... --config=linux_x86_64_cross_arm64
 #   bazel build //... --config=linux_arm64_cross_arm64
 
-# =============================================================================
-# Platform Configurations
-# =============================================================================
+# auto: native build that derives eros_config from the host platform constraints.
+# The matching config_settings (auto_x86_64 / auto_arm64 in
+# bazel/toolchain/BUILD.bazel) drive cmake_forge / cmake_conan_forge select()s.
+# No --platforms is set: Bazel's default target platform is the host platform,
+# and the registered EROS native cc toolchains auto-resolve to it.
+build:auto --define=eros_config=auto
 
 # linux_x86_64: Native x86_64 compilation
 build:linux_x86_64 --platforms=@eros_forge//bazel/toolchain:linux_x86_64_platform
@@ -55,31 +66,32 @@ build --cxxopt=-std=c++20
 build --host_cxxopt=-std=c++20
 
 # =============================================================================
-# Release Build (with symbol separation)
+# Release Build (with separate debug info)
 # =============================================================================
+#
+# -O3 / -DNDEBUG / -g are set as copts so they apply to every selected cc
+# toolchain (the EROS toolchains' opt feature no longer duplicates them).
+# The binary is NOT stripped at link time: separate_debug_info emits split
+# debug files (.dwo), and a packaging step decides whether to strip for
+# release. This keeps release binaries debuggable on the target machine.
 
 build:release --compilation_mode=opt
 build:release --copt=-O3
 build:release --copt=-DNDEBUG
 build:release --copt=-g
-build:release --linkopt=-Wl,-s
 build:release --features=separate_debug_info
 
 # =============================================================================
-# Debug Build (with ASan + UBSan enabled by default)
+# Debug Build
 # =============================================================================
 #
-# Debug mode enables AddressSanitizer and UndefinedBehaviorSanitizer by default
-# to detect memory errors and undefined behavior during development.
-#
-# Detected issues:
-# - Memory errors: buffer overflows, use-after-free, memory leaks
-# - Undefined behavior: integer overflow, null pointer dereference, division by zero
+# Debug mode is decoupled from sanitizers: it only enables debug compilation
+# (-g -O0). Use --config=asan / --config=ubsan / etc. to add sanitizers
+# explicitly on top of (or instead of) --config=debug.
 
 build:debug --compilation_mode=dbg
 build:debug --copt=-g
-build:debug --features=asan
-build:debug --features=ubsan
+build:debug --copt=-O0
 build:debug --define=cmake_build_type=Debug
 
 # =============================================================================
@@ -110,42 +122,74 @@ test --test_output=errors
 test --test_verbose_timeout_warnings
 
 # =============================================================================
-# Sanitizer Configurations (manual selection)
+# Sanitizer Configurations
 # =============================================================================
 #
-# Usage examples:
-#   bazel build //... --config=asan    # AddressSanitizer only
-#   bazel build //... --config=tsan    # ThreadSanitizer (for concurrent testing)
-#   bazel build //... --config=msan    # MemorySanitizer
+# Each sanitizer config sets: the feature, --define=eros_sanitizer (so that
+# cmake_conan_forge selects the matching Conan profile), compilation_mode=dbg
+# and cmake_build_type=Debug. Mutually-exclusive sanitizers are disabled
+# explicitly via --features=-<san> so that combining two --config=... entries
+# never produces an invalid flag set (e.g. ASan + TSan).
 #
-# Note: ASan and TSan are mutually exclusive
+# Note: ASan + UBSan is a valid combination and neither excludes the other.
 # Note: MSan requires all code (including libraries) to be compiled with MSan
-# Note: Sanitizers use static linking (-static-libsan)
+#       and typically needs Clang (GCC MSan support is limited).
+#
+# Usage examples:
+#   bazel build //... --config=asan            # AddressSanitizer
+#   bazel build //... --config=tsan            # ThreadSanitizer
+#   bazel build //... --config=ubsan           # UndefinedBehaviorSanitizer
+#   bazel build //... --config=msan            # MemorySanitizer
+#   bazel build //... --config=no_sanitizer    # disable all sanitizers
 
 # AddressSanitizer (ASan) - Detects memory errors
-# - Buffer overflows
-# - Use-after-free
-# - Use-after-return
-# - Memory leaks
+# Sanitizer configs set compilation_mode=dbg directly, so --config=asan is
+# self-sufficient (no need to also pass --config=debug). cmake_build_type is
+# intentionally NOT set here to avoid select() ambiguity with the debug
+# config; the Conan sanitizer profile/preset are selected via eros_sanitizer.
 build:asan --features=asan
+build:asan --features=-tsan
+build:asan --features=-msan
 build:asan --compilation_mode=dbg
+build:asan --define=eros_sanitizer=asan
 
 # ThreadSanitizer (TSan) - Detects data races
-# - Data races
-# - Deadlocks
 build:tsan --features=tsan
+build:tsan --features=-asan
+build:tsan --features=-ubsan
+build:tsan --features=-msan
 build:tsan --compilation_mode=dbg
 build:tsan --define=eros_sanitizer=tsan
 
 # UndefinedBehaviorSanitizer (UBSan) - Detects undefined behavior
-# - Integer overflow
-# - Null pointer dereference
-# - Division by zero
 build:ubsan --features=ubsan
+build:ubsan --features=-tsan
+build:ubsan --features=-msan
 build:ubsan --compilation_mode=dbg
+build:ubsan --define=eros_sanitizer=ubsan
 
 # MemorySanitizer (MSan) - Detects uninitialized memory reads
-# - Use of uninitialized memory
 build:msan --features=msan
+build:msan --features=-asan
+build:msan --features=-ubsan
+build:msan --features=-tsan
 build:msan --compilation_mode=dbg
 build:msan --define=eros_sanitizer=msan
+
+# Disable all sanitizers (for performance testing / baselines)
+build:no_sanitizer --features=-asan
+build:no_sanitizer --features=-ubsan
+build:no_sanitizer --features=-tsan
+build:no_sanitizer --features=-msan
+
+# =============================================================================
+# Static C++ runtime linking
+# =============================================================================
+#
+# Statically link libstdc++/libgcc into binaries (self-contained, no runtime
+# dependency on the target's libstdc++). Implemented via explicit linkopts so
+# it works uniformly across the auto-detected native toolchain and the EROS
+# cross toolchain (the static_link_cpp_runtimes feature would additionally
+# require a static_runtime_lib filegroup on the cc_toolchain).
+build:static_cpp_runtime --linkopt=-static-libstdc++
+build:static_cpp_runtime --linkopt=-static-libgcc

@@ -1,4 +1,4 @@
-# MemorySanitizer profile for x86_64 native compilation
+# MemorySanitizer profile for linux_x86_64 native compilation
 # Detects uninitialized memory reads
 
 [settings]

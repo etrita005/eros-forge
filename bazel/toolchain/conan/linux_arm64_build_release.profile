@@ -1,4 +1,4 @@
-# Build profile for native ARM64 compilation
+# Build profile for linux_arm64 native compilation
 # Same as host profile for native builds
 
 [settings]

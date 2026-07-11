@@ -10,6 +10,8 @@ ACTION_NAMES = struct(
     cpp_link_nodeps_dynamic_library = "c++-link-nodeps-dynamic-library",
     cpp_module_compile = "c++-module-compile",
     cpp_header_parsing = "c++-header-parsing",
+    preprocessing_assemble = "preprocess-assemble",
+    assemble = "assemble",
     strip = "strip",
 )
 
@@ -19,6 +21,15 @@ def _impl(ctx):
         ACTION_NAMES.cpp_compile,
         ACTION_NAMES.cpp_module_compile,
         ACTION_NAMES.cpp_header_parsing,
+    ]
+
+    # Assembly actions are tracked separately: flags that must reach the
+    # assembler driver (e.g. the cross -B prefix that lets aarch64-linux-gnu-gcc
+    # find aarch64-linux-gnu-as) need to cover assembly too, whereas
+    # C/C++-only flags (sanitizers, dependency_file, opt/dbg) must not.
+    all_compile_and_assemble_actions = all_compile_actions + [
+        ACTION_NAMES.preprocessing_assemble,
+        ACTION_NAMES.assemble,
     ]
 
     all_link_actions = [
@@ -46,6 +57,26 @@ def _impl(ctx):
         ),
         feature(name = "supports_pic", enabled = True),
         feature(name = "supports_dynamic_linker", enabled = True),
+        # Standard marker features recognised by rules_cc.
+        # preprocess-assemble is gcc-driven (.S) and supports -MD -MF, so it is
+        # included; plain assemble (as-driven .s) is not (as has no depfile).
+        feature(
+            name = "dependency_file",
+            enabled = True,
+            flag_sets = [
+                flag_set(
+                    actions = all_compile_actions + [
+                        ACTION_NAMES.preprocessing_assemble,
+                    ],
+                    flag_groups = [
+                        flag_group(
+                            flags = ["-MD", "-MF", "%{dependency_file}"],
+                            expand_if_available = "dependency_file",
+                        ),
+                    ],
+                ),
+            ],
+        ),
         feature(
             name = "static_link_cpp_runtimes",
             enabled = False,
@@ -58,33 +89,23 @@ def _impl(ctx):
                 ),
             ],
         ),
+        # Optimization flags (-O3 -DNDEBUG -g) are driven by bazelrc copts so
+        # they apply uniformly to every selected cc toolchain (including the
+        # rules_cc auto-detected native toolchain). The opt feature only keeps
+        # frame-pointer retention for usable release backtraces.
         feature(
             name = "opt",
             flag_sets = [
                 flag_set(
                     actions = all_compile_actions,
                     flag_groups = [
-                        flag_group(flags = [
-                            "-g",
-                            "-O3",
-                            "-DNDEBUG",
-                            "-fno-omit-frame-pointer",
-                        ]),
+                        flag_group(flags = ["-fno-omit-frame-pointer"]),
                     ],
                 ),
             ],
         ),
-        feature(
-            name = "dbg",
-            flag_sets = [
-                flag_set(
-                    actions = all_compile_actions,
-                    flag_groups = [
-                        flag_group(flags = ["-g", "-O0"]),
-                    ],
-                ),
-            ],
-        ),
+        # Debug flags (-g -O0) are driven by bazelrc copts (see build:debug).
+        feature(name = "dbg"),
         feature(
             name = "coverage",
             flag_sets = [
@@ -194,16 +215,26 @@ def _impl(ctx):
         ),
     ]
 
-    if ctx.attr.sysroot:
+    # Resolve the deployment sysroot. --define=eros_sysroot=... overrides the
+    # per-toolchain default (DEFAULT_SYSROOT, typically /opt/eros). The sysroot
+    # is used to embed the target dynamic linker and RUNPATH; it is NOT passed
+    # as --sysroot (the cross toolchain's default sysroot is kept) so that
+    # system headers/libraries are still found via the host cross toolchain.
+    sysroot = ctx.var.get("eros_sysroot") or ctx.attr.sysroot_default
+
+    if sysroot:
         features.append(
             feature(
                 name = "sysroot",
                 enabled = True,
                 flag_sets = [
                     flag_set(
-                        actions = all_compile_actions + all_link_actions,
+                        actions = all_link_actions,
                         flag_groups = [
-                            flag_group(flags = ["--sysroot=" + ctx.attr.sysroot]),
+                            flag_group(flags = [
+                                "-Wl,--rpath=" + sysroot + "/lib",
+                                "-Wl,--dynamic-linker=" + sysroot + "/lib/" + ctx.attr.dynamic_linker_basename,
+                            ]),
                         ],
                     ),
                 ],
@@ -233,7 +264,7 @@ def _impl(ctx):
                 enabled = True,
                 flag_sets = [
                     flag_set(
-                        actions = all_compile_actions,
+                        actions = all_compile_and_assemble_actions,
                         flag_groups = [
                             flag_group(flags = ctx.attr.extra_compile_flags),
                         ],
@@ -260,6 +291,7 @@ def _impl(ctx):
             tool_path(name = "objdump", path = ctx.attr.objdump_path),
             tool_path(name = "strip", path = ctx.attr.strip_path),
             tool_path(name = "objcopy", path = ctx.attr.objcopy_path),
+            tool_path(name = "dwp", path = ctx.attr.dwp_path),
         ],
         target_cpu = ctx.attr.cpu,
         target_system_name = ctx.attr.target_system_name,
@@ -293,8 +325,10 @@ cc_toolchain_config = rule(
         "objdump_path": attr.string(mandatory = True),
         "strip_path": attr.string(mandatory = True),
         "objcopy_path": attr.string(mandatory = True),
+        "dwp_path": attr.string(mandatory = True),
         "cxx_builtin_include_directories": attr.string_list(mandatory = True),
-        "sysroot": attr.string(default = ""),
+        "sysroot_default": attr.string(default = ""),
+        "dynamic_linker_basename": attr.string(default = ""),
         "extra_compile_flags": attr.string_list(default = []),
         "extra_link_flags": attr.string_list(default = []),
     },

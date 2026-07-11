@@ -79,10 +79,10 @@ EROS Forge 测试集合用于验证 EROS Forge 构建系统的各项功能，包
 - BM-002: `--config=release` - Release 模式构建
 
 **Sanitizer 测试 (4 个)**:
-- BS-001: `--config=tsan_test` - ThreadSanitizer 测试模式
-- BS-002: `--config=tsan` - ThreadSanitizer 构建模式
-- BS-003: `--config=msan` - MemorySanitizer
-- BS-004: `--config=no_sanitizer` - 禁用 Sanitizer
+- BS-001: `--config=asan` - AddressSanitizer
+- BS-002: `--config=ubsan` - UndefinedBehaviorSanitizer
+- BS-003: `--config=tsan` - ThreadSanitizer
+- BS-004: `--config=msan` - MemorySanitizer（GCC 支持有限，需 Clang）
 
 **依赖消费测试 (4 个)**:
 - DC-BP-001: `--config=linux_x86_64` - 消费静态库和动态库（x86_64）
@@ -103,10 +103,10 @@ EROS Forge 测试集合用于验证 EROS Forge 构建系统的各项功能，包
 - BC-BM-002: `--config=release` - Release 模式构建
 
 **Sanitizer 测试 (4 个)**:
-- BC-BS-001: `--config=tsan_test` - ThreadSanitizer 测试模式
-- BC-BS-002: `--config=tsan` - ThreadSanitizer 构建模式
-- BC-BS-003: `--config=msan` - MemorySanitizer
-- BC-BS-004: `--config=no_sanitizer` - 禁用 Sanitizer
+- BC-BS-001: `--config=asan` - AddressSanitizer
+- BC-BS-002: `--config=ubsan` - UndefinedBehaviorSanitizer
+- BC-BS-003: `--config=tsan` - ThreadSanitizer
+- BC-BS-004: `--config=msan` - MemorySanitizer（GCC 支持有限，需 Clang）
 
 **依赖消费测试 (4 个)**:
 - DC-BC-001: `--config=linux_x86_64` - 消费 CMake 构建的库（x86_64）
@@ -127,10 +127,13 @@ EROS Forge 测试集合用于验证 EROS Forge 构建系统的各项功能，包
 - BCC-BM-002: `--config=release` - Release 模式构建
 
 **Sanitizer 测试 (4 个)**:
-- BCC-BS-001: `--config=tsan_test` - ThreadSanitizer 测试模式
-- BCC-BS-002: `--config=tsan` - ThreadSanitizer 构建模式
-- BCC-BS-003: `--config=msan` - MemorySanitizer
-- BCC-BS-004: `--config=no_sanitizer` - 禁用 Sanitizer
+- BCC-BS-001: `--config=asan` - AddressSanitizer
+- BCC-BS-002: `--config=ubsan` - UndefinedBehaviorSanitizer
+- BCC-BS-003: `--config=tsan` - ThreadSanitizer
+- BCC-BS-004: `--config=msan` - MemorySanitizer（GCC 支持有限，需 Clang）
+
+> 注：`cmake_conan_forge` 的 Conan sanitizer profile 仅覆盖 asan/tsan（见
+> `generate_files.py` 的 `SANITIZERS`），ubsan/msan 在 Conan 测试中跳过。
 
 **依赖消费测试 (4 个)**:
 - DC-BCC-001: `--config=linux_x86_64` - 消费 CMake+Conan 构建的库（x86_64）
@@ -453,9 +456,12 @@ python3 test_runner.py [选项]
 | `--all` | `-a` | 运行所有测试 | `python3 test_runner.py --all` |
 | `--test` | `-t` | 运行指定测试项目 | `python3 test_runner.py --test bazel_simple` |
 | `--config` | `-c` | 运行指定配置类别 | `python3 test_runner.py --test bazel_simple --config platform` |
+| `--filter` | | 只运行名称含该子串的测试 | `python3 test_runner.py --all --filter platform` |
+| `--jobs` | | 跨项目并行（各项目独立 Bazel workspace） | `python3 test_runner.py --all --jobs 3` |
 | `--report` | `-r` | 生成测试报告 | `python3 test_runner.py --all --report report.txt` |
-| `--verbose` | `-v` | 详细输出模式 | `python3 test_runner.py --all --verbose` |
 | `--help` | `-h` | 显示帮助信息 | `python3 test_runner.py --help` |
+
+> `--config` 可选值：`platform`、`build_mode`、`sanitizer`、`dependency`、`deb`。
 
 #### 使用示例
 
@@ -514,11 +520,8 @@ cd eros/forge/tests/bazel_simple
 # 运行所有 Sanitizer 测试
 ./test_configs/test_sanitizers.sh
 
-# 运行特定 Sanitizer 测试
-./test_configs/test_sanitizers.sh tsan_test
-./test_configs/test_sanitizers.sh tsan
-./test_configs/test_sanitizers.sh msan
-./test_configs/test_sanitizers.sh no_sanitizer
+# 运行特定 Sanitizer 测试（脚本接受 sanitizer 名作为参数）
+./test_configs/test_sanitizers.sh linux_x86_64
 ```
 
 #### 依赖消费测试
@@ -1007,10 +1010,13 @@ reports/
 
 | 配置名称 | Bazel 配置 | Sanitizer 类型 | 编译标志 | 用途 |
 |---------|-----------|---------------|---------|------|
-| tsan_test | `--config=tsan_test` | ThreadSanitizer | -fsanitize=thread | 测试线程问题 |
-| tsan | `--config=tsan` | ThreadSanitizer | -fsanitize=thread | 构建线程检测版本 |
-| msan | `--config=msan` | MemorySanitizer | -fsanitize=memory | 检测内存问题 |
-| no_sanitizer | `--config=no_sanitizer` | 无 | 无 | 生产构建 |
+| asan | `--config=asan` | AddressSanitizer | -fsanitize=address | 检测内存错误 |
+| ubsan | `--config=ubsan` | UndefinedBehaviorSanitizer | -fsanitize=undefined | 检测未定义行为 |
+| tsan | `--config=tsan` | ThreadSanitizer | -fsanitize=thread | 检测数据竞争 |
+| msan | `--config=msan` | MemorySanitizer | -fsanitize=memory | 检测未初始化内存（需 Clang） |
+| no_sanitizer | `--config=no_sanitizer` | 无 | 无 | 性能测试基线 |
+
+> Sanitizer 与平台配置叠加使用，例如 `--config=linux_x86_64 --config=asan`。
 
 ### 附录 B: 快速命令参考
 

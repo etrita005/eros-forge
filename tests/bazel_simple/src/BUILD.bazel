@@ -1,4 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+load("@eros_forge//bazel:deb.bzl", "pkg_eros_deb", "pkg_eros_tar")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -25,4 +26,35 @@ cc_binary(
     copts = ["-std=c++20"],
     deps = [":math_utils_static"],
     linkstatic = True,
+)
+
+# -----------------------------------------------------------------------------
+# Deb packaging smoke test target.
+#
+# Uses a genrule-produced tar (not the cc_binary) as the deb data, so the deb
+# rule can be exercised under ANY platform config (including cross-compilation
+# to ARM64) without requiring a buildable cross binary or /opt/eros. The deb's
+# architecture is auto-selected from the target platform's cpu constraint.
+# -----------------------------------------------------------------------------
+
+genrule(
+    name = "deb_data_src",
+    srcs = ["main.cpp"],
+    outs = ["deb_data.tar"],
+    cmd = "mkdir -p $(@D)/_debdata/opt/eros/bin && cp $(SRCS) $(@D)/_debdata/opt/eros/bin/ && tar cf $@ -C $(@D)/_debdata .",
+)
+
+pkg_eros_tar(
+    name = "hello_deb_data",
+    srcs = [":deb_data_src"],
+    package_dir = "/",
+    strip_prefix = ".",
+)
+
+pkg_eros_deb(
+    name = "hello_deb",
+    package_name = "eros-hello",
+    data = ":hello_deb_data",
+    description = "EROS Forge deb packaging smoke test",
+    maintainer = "EROS Team <team@example.com>",
 )

@@ -1,4 +1,4 @@
-# ThreadSanitizer profile for ARM64 native compilation
+# ThreadSanitizer profile for linux_arm64 native compilation
 # Detects data races and deadlocks
 
 [settings]

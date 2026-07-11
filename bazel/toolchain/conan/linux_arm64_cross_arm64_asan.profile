@@ -1,4 +1,4 @@
-# AddressSanitizer profile for ARM64 cross-compilation
+# AddressSanitizer profile for ARM64 -> ARM64 (with custom glibc) cross-compilation
 # Detects memory errors
 
 [settings]

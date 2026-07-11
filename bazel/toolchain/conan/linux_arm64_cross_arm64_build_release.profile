@@ -1,4 +1,4 @@
-# Build profile for ARM64 -> ARM64 cross-compilation (with custom glibc)
+# Build profile for ARM64 -> ARM64 (with custom glibc) cross-compilation
 # This describes the BUILD machine (ARM64 native)
 
 [settings]

@@ -1,4 +1,4 @@
-# AddressSanitizer profile for x86_64 native compilation
+# AddressSanitizer profile for linux_x86_64 native compilation
 # Detects memory errors
 
 [settings]

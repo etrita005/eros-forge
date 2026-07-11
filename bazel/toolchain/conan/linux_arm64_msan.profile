@@ -1,4 +1,4 @@
-# MemorySanitizer profile for ARM64 native compilation
+# MemorySanitizer profile for linux_arm64 native compilation
 # Detects uninitialized memory reads
 
 [settings]

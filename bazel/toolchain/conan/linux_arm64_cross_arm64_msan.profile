@@ -1,4 +1,4 @@
-# MemorySanitizer profile for ARM64 cross-compilation
+# MemorySanitizer profile for ARM64 -> ARM64 (with custom glibc) cross-compilation
 # Detects uninitialized memory reads
 
 [settings]
