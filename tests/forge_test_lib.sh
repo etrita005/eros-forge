@@ -204,19 +204,15 @@ forge_find_lib() {
     if [ -n "$abs" ] && [ -e "$abs" ]; then echo "$abs"; else echo "$rel"; fi
 }
 
-# forge_find_cmake_log <workdir> [variant]
-# Locate the rules_foreign_cc CMake.log. When <variant> (e.g. "debug"/"release")
-# is given, only CMake.log files under a path containing that variant are
-# considered, so the debug and release configure logs are not confused.
+# forge_find_cmake_log <workdir>
+# Locate the rules_foreign_cc CMake.log (most recently modified one under
+# bazel-bin). With the single-cmake-target cmake_forge refactor there is only
+# one CMake.log per configuration, so a latest-by-mtime lookup suffices.
 forge_find_cmake_log() {
-    local workdir="$1"; local variant="${2:-}"
+    local workdir="$1"
     local rel abs
-    if [ -n "$variant" ]; then
-        rel=$(cd "$workdir" && find -L bazel-bin -path "*${variant}*" -name "CMake.log" -type f 2>/dev/null | head -n1)
-    else
-        rel=$(cd "$workdir" && find -L bazel-bin -name "CMake.log" -type f -printf '%T@ %p\n' 2>/dev/null \
-            | sort -rn | head -n1 | cut -d' ' -f2-)
-    fi
+    rel=$(cd "$workdir" && find -L bazel-bin -name "CMake.log" -type f -printf '%T@ %p\n' 2>/dev/null \
+        | sort -rn | head -n1 | cut -d' ' -f2-)
     [ -z "$rel" ] && { echo ""; return; }
     abs=$(cd "$workdir" && realpath "$rel" 2>/dev/null) || abs=""
     if [ -n "$abs" ] && [ -e "$abs" ]; then echo "$abs"; else echo "$rel"; fi
@@ -451,12 +447,15 @@ forge_check_rpath() {
         forge_skip "RPATH: not required for $FC_CONFIG"
         return
     fi
-    local rpath
-    rpath=$("$FC_READELF" -d "$binary" 2>/dev/null | grep -E 'RPATH|RUNPATH' | grep -oE '/[a-zA-Z0-9_/.-]+' | head -1)
-    if [[ "$rpath" == *"$FC_RPATH"* ]]; then
-        forge_ok "RUNPATH: $rpath"
+    # Extract the full RUNPATH string (may contain multiple colon-separated
+    # paths, e.g. Bazel solib + deployment /opt/eros/lib). Check that the
+    # expected RPATH appears ANYWHERE in the list, not just as the first entry.
+    local rpath_full
+    rpath_full=$("$FC_READELF" -d "$binary" 2>/dev/null | grep -E 'RPATH|RUNPATH' | grep -oE '/[a-zA-Z0-9_/.-]+' | tr '\n' ':')
+    if [[ "$rpath_full" == *"$FC_RPATH"* ]]; then
+        forge_ok "RUNPATH: $FC_RPATH (found in RUNPATH)"
     else
-        forge_die "RUNPATH: expected $FC_RPATH, found ${rpath:-none}"
+        forge_die "RUNPATH: expected $FC_RPATH, found ${rpath_full:-none}"
     fi
 }
 

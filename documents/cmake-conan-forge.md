@@ -182,9 +182,22 @@ tools.cmake.cmaketoolchain:generator=Unix Makefiles
 tools.cmake.cmaketoolchain:system_name=Linux
 tools.cmake.cmaketoolchain:system_processor=aarch64
 tools.build:compiler_executables={"c": "/usr/bin/aarch64-linux-gnu-gcc", "cpp": "/usr/bin/aarch64-linux-gnu-g++"}
-tools.cmake.cmaketoolchain:extra_variables={"CMAKE_FIND_ROOT_PATH_MODE_PROGRAM": "NEVER", "CMAKE_FIND_ROOT_PATH_MODE_LIBRARY": "ONLY", "CMAKE_FIND_ROOT_PATH_MODE_INCLUDE": "ONLY"}
+tools.cmake.cmaketoolchain:extra_variables={"CMAKE_FIND_ROOT_PATH_MODE_PROGRAM": "NEVER", "CMAKE_FIND_ROOT_PATH_MODE_LIBRARY": "ONLY", "CMAKE_FIND_ROOT_PATH_MODE_INCLUDE": "ONLY", "CMAKE_TRY_COMPILE_TARGET_TYPE": "STATIC_LIBRARY"}
 tools.build:exelinkflags=["-L/usr/lib/gcc/aarch64-linux-gnu/13", "-L/usr/aarch64-linux-gnu/lib", "-L/usr/lib/aarch64-linux-gnu", "-Wl,--rpath=/opt/eros/lib", "-Wl,--dynamic-linker=/opt/eros/lib/ld-linux-aarch64.so.1"]
 ```
+
+#### 交叉编译 Profile 中的 `CMAKE_TRY_COMPILE_TARGET_TYPE`
+
+交叉编译的 host profile 在 `extra_variables` 中设置了 `CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY`，原生 profile 不设置此变量。
+
+**原因**：CMake 在 `project()` / `enable_language()` 阶段会执行 `try_compile` 编译器检查。默认行为是编译并链接一个测试可执行文件，然后运行它以验证编译器可用。交叉编译时，测试程序编译为目标架构（如 aarch64）但无法在宿主机（如 x86_64）上运行，CMake 会报 `Check for working C compiler: ... - broken` 并中止配置。
+
+设置为 `STATIC_LIBRARY` 后，`try_compile` 只编译为静态库（不链接、不运行），编译器检查仅需编译成功即可通过。这是 CMake 交叉编译的标准做法（参见 [CMake 交叉编译文档](https://cmake.org/cmake/help/latest/manual/cmake-toolchains.7.html#cross-compiling)）。
+
+**影响范围**：
+- 仅影响交叉编译的 host profile（通过 `generate_files.py` 的 `_extra_variables()` 生成）
+- 原生编译 profile 不包含此变量，`try_compile` 保持默认行为（编译+链接+运行）
+- `try_run` 在交叉编译时会跳过运行步骤（`RUN_RESULT` 为 0、`RUN_OUTPUT` 为空），依赖 `try_run` 检测系统特性的 CMake 项目需要通过 cache entry 或 toolchain file 预设结果
 
 ### 3. cmake_build (规则)
 

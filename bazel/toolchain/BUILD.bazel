@@ -1,4 +1,5 @@
 load(":eros_cc_toolchains.bzl", "eros_cc_toolchain")
+load(":constraints.bzl", "CROSS_ARM64", "EXEC_ARM64", "EXEC_X86_64", "NATIVE_ARM64", "NATIVE_X86_64")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -18,54 +19,49 @@ constraint_value(
 )
 
 # =============================================================================
-# Config settings (driven by --define). Used by cmake_forge / cmake_conan_forge
-# select()s and by the platform/sanitizer selection logic.
+# Config settings
 # =============================================================================
+#
+# Native configs (linux_x86_64, linux_arm64) are driven purely by platform
+# constraint_values (NATIVE_X86_64 / NATIVE_ARM64 from constraints.bzl). They
+# match the DEFAULT target platform (the host) when no --platforms is given,
+# so a plain `bazel build` auto-detects the host architecture without any
+# --define or --config. --config=auto is kept as a no-op alias for backward
+# compatibility.
+#
+# Cross configs (linux_x86_64_cross_arm64, linux_arm64_cross_arm64) still use
+# --define=eros_config=<key> because both target arm64+:glibc_cross and cannot
+# be distinguished by target-platform constraints alone (the difference is the
+# exec/host platform). constraint_values are added as well so the config_setting
+# is only satisfied when the platform AND the define agree.
+#
+# Combined config_settings (e.g. linux_x86_64_asan) carry additional defines
+# (eros_sanitizer, cmake_build_type) on top of the platform constraints. Bazel's
+# select() specificity rule ensures the most specific matching condition wins.
+# Sanitizer config_settings include cmake_build_type=Debug so they are strict
+# supersets of the debug config_settings, avoiding ambiguity when combining
+# --config=debug --config=asan.
 
 config_setting(
     name = "linux_x86_64",
-    define_values = {"eros_config": "linux_x86_64"},
+    constraint_values = NATIVE_X86_64,
 )
 
 config_setting(
     name = "linux_arm64",
-    define_values = {"eros_config": "linux_arm64"},
+    constraint_values = NATIVE_ARM64,
 )
 
 config_setting(
     name = "linux_x86_64_cross_arm64",
+    constraint_values = CROSS_ARM64,
     define_values = {"eros_config": "linux_x86_64_cross_arm64"},
 )
 
 config_setting(
     name = "linux_arm64_cross_arm64",
+    constraint_values = CROSS_ARM64,
     define_values = {"eros_config": "linux_arm64_cross_arm64"},
-)
-
-# -----------------------------------------------------------------------------
-# Auto-detect native config (--config=auto sets eros_config=auto).
-#
-# These match ONLY when eros_config=auto AND the target platform's cpu constraint
-# is the host arch (the default target platform is the host platform, so for a
-# native build with no --platforms the cpu constraint reflects the host). They
-# never conflict with the explicit linux_<arch> configs above, because those set
-# eros_config to a concrete value rather than "auto".
-#
-# This is the idiomatic Bazel way to drive native selection from platform
-# constraints instead of an --define convention, and it makes the README's
-# "auto-detect host architecture" statement true.
-# -----------------------------------------------------------------------------
-
-config_setting(
-    name = "auto_x86_64",
-    define_values = {"eros_config": "auto"},
-    constraint_values = ["@platforms//cpu:x86_64"],
-)
-
-config_setting(
-    name = "auto_arm64",
-    define_values = {"eros_config": "auto"},
-    constraint_values = ["@platforms//cpu:arm64"],
 )
 
 config_setting(
@@ -75,22 +71,19 @@ config_setting(
 
 config_setting(
     name = "linux_x86_64_debug",
-    define_values = {
-        "eros_config": "linux_x86_64",
-        "cmake_build_type": "Debug",
-    },
+    constraint_values = NATIVE_X86_64,
+    define_values = {"cmake_build_type": "Debug"},
 )
 
 config_setting(
     name = "linux_arm64_debug",
-    define_values = {
-        "eros_config": "linux_arm64",
-        "cmake_build_type": "Debug",
-    },
+    constraint_values = NATIVE_ARM64,
+    define_values = {"cmake_build_type": "Debug"},
 )
 
 config_setting(
     name = "linux_arm64_cross_arm64_debug",
+    constraint_values = CROSS_ARM64,
     define_values = {
         "eros_config": "linux_arm64_cross_arm64",
         "cmake_build_type": "Debug",
@@ -99,6 +92,7 @@ config_setting(
 
 config_setting(
     name = "linux_x86_64_cross_arm64_debug",
+    constraint_values = CROSS_ARM64,
     define_values = {
         "eros_config": "linux_x86_64_cross_arm64",
         "cmake_build_type": "Debug",
@@ -127,97 +121,115 @@ config_setting(
 
 config_setting(
     name = "linux_arm64_tsan",
+    constraint_values = NATIVE_ARM64,
     define_values = {
-        "eros_config": "linux_arm64",
         "eros_sanitizer": "tsan",
+        "cmake_build_type": "Debug",
     },
 )
 
 config_setting(
     name = "linux_arm64_msan",
+    constraint_values = NATIVE_ARM64,
     define_values = {
-        "eros_config": "linux_arm64",
         "eros_sanitizer": "msan",
+        "cmake_build_type": "Debug",
     },
 )
 
 config_setting(
     name = "linux_arm64_asan",
+    constraint_values = NATIVE_ARM64,
     define_values = {
-        "eros_config": "linux_arm64",
         "eros_sanitizer": "asan",
+        "cmake_build_type": "Debug",
     },
 )
 
 config_setting(
     name = "linux_arm64_cross_arm64_tsan",
+    constraint_values = CROSS_ARM64,
     define_values = {
         "eros_config": "linux_arm64_cross_arm64",
         "eros_sanitizer": "tsan",
+        "cmake_build_type": "Debug",
     },
 )
 
 config_setting(
     name = "linux_arm64_cross_arm64_msan",
+    constraint_values = CROSS_ARM64,
     define_values = {
         "eros_config": "linux_arm64_cross_arm64",
         "eros_sanitizer": "msan",
+        "cmake_build_type": "Debug",
     },
 )
 
 config_setting(
     name = "linux_arm64_cross_arm64_asan",
+    constraint_values = CROSS_ARM64,
     define_values = {
         "eros_config": "linux_arm64_cross_arm64",
         "eros_sanitizer": "asan",
+        "cmake_build_type": "Debug",
     },
 )
 
 config_setting(
     name = "linux_x86_64_tsan",
+    constraint_values = NATIVE_X86_64,
     define_values = {
-        "eros_config": "linux_x86_64",
         "eros_sanitizer": "tsan",
+        "cmake_build_type": "Debug",
     },
 )
 
 config_setting(
     name = "linux_x86_64_msan",
+    constraint_values = NATIVE_X86_64,
     define_values = {
-        "eros_config": "linux_x86_64",
         "eros_sanitizer": "msan",
+        "cmake_build_type": "Debug",
     },
 )
 
 config_setting(
     name = "linux_x86_64_asan",
+    constraint_values = NATIVE_X86_64,
     define_values = {
-        "eros_config": "linux_x86_64",
         "eros_sanitizer": "asan",
+        "cmake_build_type": "Debug",
     },
 )
 
 config_setting(
     name = "linux_x86_64_cross_arm64_tsan",
+    constraint_values = CROSS_ARM64,
     define_values = {
         "eros_config": "linux_x86_64_cross_arm64",
         "eros_sanitizer": "tsan",
+        "cmake_build_type": "Debug",
     },
 )
 
 config_setting(
     name = "linux_x86_64_cross_arm64_msan",
+    constraint_values = CROSS_ARM64,
     define_values = {
         "eros_config": "linux_x86_64_cross_arm64",
         "eros_sanitizer": "msan",
+        "cmake_build_type": "Debug",
     },
 )
 
 config_setting(
     name = "linux_x86_64_cross_arm64_asan",
+    constraint_values = CROSS_ARM64,
     define_values = {
         "eros_config": "linux_x86_64_cross_arm64",
         "eros_sanitizer": "asan",
+        "cmake_build_type": "Debug",
     },
 )
 
@@ -227,29 +239,17 @@ config_setting(
 
 platform(
     name = "linux_x86_64_platform",
-    constraint_values = [
-        "@platforms//os:linux",
-        "@platforms//cpu:x86_64",
-        ":glibc_native",
-    ],
+    constraint_values = NATIVE_X86_64,
 )
 
 platform(
     name = "linux_arm64_platform",
-    constraint_values = [
-        "@platforms//os:linux",
-        "@platforms//cpu:arm64",
-        ":glibc_native",
-    ],
+    constraint_values = NATIVE_ARM64,
 )
 
 platform(
     name = "linux_arm64_cross_platform",
-    constraint_values = [
-        "@platforms//os:linux",
-        "@platforms//cpu:arm64",
-        ":glibc_cross",
-    ],
+    constraint_values = CROSS_ARM64,
 )
 
 # =============================================================================
@@ -261,15 +261,8 @@ eros_cc_toolchain(
     name = "cc-toolchain-x86_64",
     toolchain_name = "cc-toolchain-linux-x86_64",
     config_key = "linux_x86_64",
-    exec_compatible_with = [
-        "@platforms//os:linux",
-        "@platforms//cpu:x86_64",
-    ],
-    target_compatible_with = [
-        "@platforms//os:linux",
-        "@platforms//cpu:x86_64",
-        ":glibc_native",
-    ],
+    exec_compatible_with = EXEC_X86_64,
+    target_compatible_with = NATIVE_X86_64,
     host_tools = "@eros_host_tools//:native_all",
 )
 
@@ -278,15 +271,8 @@ eros_cc_toolchain(
     name = "cc-toolchain-arm64-native",
     toolchain_name = "cc-toolchain-linux-arm64",
     config_key = "linux_arm64",
-    exec_compatible_with = [
-        "@platforms//os:linux",
-        "@platforms//cpu:arm64",
-    ],
-    target_compatible_with = [
-        "@platforms//os:linux",
-        "@platforms//cpu:arm64",
-        ":glibc_native",
-    ],
+    exec_compatible_with = EXEC_ARM64,
+    target_compatible_with = NATIVE_ARM64,
     host_tools = "@eros_host_tools//:native_all",
 )
 
@@ -295,15 +281,8 @@ eros_cc_toolchain(
     name = "cc-toolchain-arm64-cross-from-x86_64",
     toolchain_name = "cc-toolchain-x86_64-to-arm64",
     config_key = "linux_x86_64_cross_arm64",
-    exec_compatible_with = [
-        "@platforms//os:linux",
-        "@platforms//cpu:x86_64",
-    ],
-    target_compatible_with = [
-        "@platforms//os:linux",
-        "@platforms//cpu:arm64",
-        ":glibc_cross",
-    ],
+    exec_compatible_with = EXEC_X86_64,
+    target_compatible_with = CROSS_ARM64,
     host_tools = "@eros_host_tools//:cross_arm64_all",
 )
 
@@ -312,14 +291,7 @@ eros_cc_toolchain(
     name = "cc-toolchain-arm64-cross-from-arm64",
     toolchain_name = "cc-toolchain-arm64-to-arm64",
     config_key = "linux_arm64_cross_arm64",
-    exec_compatible_with = [
-        "@platforms//os:linux",
-        "@platforms//cpu:arm64",
-    ],
-    target_compatible_with = [
-        "@platforms//os:linux",
-        "@platforms//cpu:arm64",
-        ":glibc_cross",
-    ],
+    exec_compatible_with = EXEC_ARM64,
+    target_compatible_with = CROSS_ARM64,
     host_tools = "@eros_host_tools//:cross_arm64_all",
 )

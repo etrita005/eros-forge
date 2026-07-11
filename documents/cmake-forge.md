@@ -24,9 +24,7 @@
 ```
 cmake_forge (宏)
     ├── native.filegroup - 选择工具链文件
-    ├── cmake (_{name}_release) - Release 构建目标
-    ├── cmake (_{name}_debug) - Debug 构建目标
-    └── native.alias - 根据 --config 选择实际目标
+    └── cmake - 单一构建目标（CMAKE_BUILD_TYPE 通过 select() 在 cache_entries 上切换）
 ```
 
 ## 规则详解
@@ -80,35 +78,15 @@ native.filegroup(
 
 ### 构建类型支持
 
-由于 `rules_foreign_cc` 的 `cache_entries` 不支持 `select`，使用 alias + select 来支持 Debug 和 Release 模式：
+`cmake_forge` 通过在 `cache_entries` 上使用 `select()` 来切换 `CMAKE_BUILD_TYPE`，无需创建多个 cmake 目标。`--config=debug` 设置 `--define=cmake_build_type=Debug`，匹配 `cmake_debug` config_setting，使 select 选中 Debug 分支；默认（含 `--config=release`）选中 Release 分支。
 
 ```python
-# Release 目标
+# 单一 cmake 目标：cache_entries 是一个 select()，每个分支是完整的 dict
 cmake(
-    name = "_{}_release".format(name),
-    cache_entries = {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_TOOLCHAIN_FILE": "$(location :_{}_toolchain_file)".format(name),
-    } | cache_entries,
-    ...
-)
-
-# Debug 目标
-cmake(
-    name = "_{}_debug".format(name),
-    cache_entries = {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "$(location :_{}_toolchain_file)".format(name),
-    } | cache_entries,
-    ...
-)
-
-# Alias 根据 --config=debug/release 选择实际目标
-native.alias(
     name = name,
-    actual = select({
-        "@eros_forge//bazel/toolchain:cmake_debug": "_{}_debug".format(name),
-        "//conditions:default": "_{}_release".format(name),
+    cache_entries = select({
+        "@eros_forge//bazel/toolchain:cmake_debug": dict(base_cache_entries, CMAKE_BUILD_TYPE = "Debug"),
+        "//conditions:default": dict(base_cache_entries, CMAKE_BUILD_TYPE = "Release"),
     }),
     ...
 )
@@ -255,7 +233,7 @@ cmake_forge(
 
 ## 限制
 
-1. **cache_entries 不支持 select**：如果需要根据平台设置不同的 CMake 变量，需要创建多个目标
+1. **CMAKE_BUILD_TYPE 由宏控制**：`cmake_forge` 通过 `select()` 在 `cache_entries` 上切换 `CMAKE_BUILD_TYPE`，用户在 `cache_entries` 中传入的 `CMAKE_BUILD_TYPE` 会被覆盖。构建类型仅通过 `--config=debug` / `--config=release` 控制。
 2. **交叉编译依赖 rules_foreign_cc**：某些复杂的交叉编译场景可能需要使用 `cmake_conan_forge`
 3. **无依赖管理**：不集成 Conan，需要手动管理依赖
 
@@ -264,7 +242,7 @@ cmake_forge(
 `cmake_forge` 是 `rules_foreign_cc` 的 `cmake` 规则的封装，主要添加了：
 
 1. 自动工具链文件选择
-2. 构建类型分离（Debug/Release）
+2. 构建类型切换（通过 `cache_entries` 上的 `select()`，单一目标）
 3. EROS 平台配置集成
 
 底层仍然使用 `rules_foreign_cc` 的实现：

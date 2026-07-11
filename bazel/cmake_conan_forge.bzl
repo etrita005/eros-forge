@@ -501,8 +501,7 @@ def cmake_conan_forge(name, conanfile, cmake_lists, srcs, target_name = None,
         "@eros_forge//bazel/toolchain:linux_arm64_debug": "@eros_forge//bazel/toolchain/conan:linux_arm64_debug",
         "@eros_forge//bazel/toolchain:linux_arm64": "@eros_forge//bazel/toolchain/conan:linux_arm64_release",
         "@eros_forge//bazel/toolchain:linux_x86_64_debug": "@eros_forge//bazel/toolchain/conan:linux_x86_64_debug",
-        "@eros_forge//bazel/toolchain:auto_arm64": "@eros_forge//bazel/toolchain/conan:linux_arm64_release",
-        "@eros_forge//bazel/toolchain:auto_x86_64": "@eros_forge//bazel/toolchain/conan:linux_x86_64_release",
+        "@eros_forge//bazel/toolchain:linux_x86_64": "@eros_forge//bazel/toolchain/conan:linux_x86_64_release",
         "//conditions:default": "@eros_forge//bazel/toolchain/conan:linux_x86_64_release",
     })
     
@@ -526,8 +525,7 @@ def cmake_conan_forge(name, conanfile, cmake_lists, srcs, target_name = None,
         "@eros_forge//bazel/toolchain:linux_arm64_debug": "@eros_forge//bazel/toolchain/conan:linux_arm64_debug",
         "@eros_forge//bazel/toolchain:linux_arm64": "@eros_forge//bazel/toolchain/conan:linux_arm64_build_release",
         "@eros_forge//bazel/toolchain:linux_x86_64_debug": "@eros_forge//bazel/toolchain/conan:linux_x86_64_debug",
-        "@eros_forge//bazel/toolchain:auto_arm64": "@eros_forge//bazel/toolchain/conan:linux_arm64_build_release",
-        "@eros_forge//bazel/toolchain:auto_x86_64": "@eros_forge//bazel/toolchain/conan:linux_x86_64_build_release",
+        "@eros_forge//bazel/toolchain:linux_x86_64": "@eros_forge//bazel/toolchain/conan:linux_x86_64_build_release",
         "//conditions:default": "@eros_forge//bazel/toolchain/conan:linux_x86_64_build_release",
     })
 

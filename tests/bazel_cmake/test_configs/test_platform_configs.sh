@@ -31,7 +31,7 @@ for config in "${PLATFORM_CONFIGS[@]}"; do
     BINARY=$(forge_cquery_files "$SRC_DIR" //:hello 'hello_cmake$' -- --config="$config")
     STATIC_LIB=$(forge_find_lib "$SRC_DIR" "libmath_utils_static.a")
     SHARED_LIB=$(forge_find_lib "$SRC_DIR" "libmath_utils_shared.so")
-    CMAKE_LOG=$(forge_find_cmake_log "$SRC_DIR" "release")
+    CMAKE_LOG=$(forge_find_cmake_log "$SRC_DIR")
     [ -n "$BINARY" ]   && [ -f "$BINARY" ]   || forge_die "binary not found"
     [ -n "$STATIC_LIB" ] && [ -f "$STATIC_LIB" ] || forge_die "static lib not found"
     [ -n "$SHARED_LIB" ] && [ -f "$SHARED_LIB" ] || forge_die "shared lib not found"

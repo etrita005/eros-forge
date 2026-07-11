@@ -13,6 +13,13 @@ def cmake_forge(name, **kwargs):
     - --config=debug -> Debug
     - --config=release (or default) -> Release
 
+    A single cmake target is created: CMAKE_BUILD_TYPE is driven by a select()
+    on the entire cache_entries dict (each branch is a complete dict with the
+    appropriate CMAKE_BUILD_TYPE). This avoids the previous approach of
+    instantiating both _{name}_debug and _{name}_release targets, which
+    polluted the build graph and was a workaround for the assumption that
+    cache_entries could not be configured via select().
+
     Args:
         name: Name of the rule
         **kwargs: Additional arguments passed to cmake rule
@@ -21,6 +28,7 @@ def cmake_forge(name, **kwargs):
     generate_crosstool_file = kwargs.pop("generate_crosstool_file", False)
     data = kwargs.pop("data", [])
     deps = kwargs.pop("deps", [])
+    visibility = kwargs.pop("visibility", ["//visibility:public"])
 
     native.filegroup(
         name = "_{}_toolchain_file".format(name),
@@ -29,8 +37,6 @@ def cmake_forge(name, **kwargs):
             "@eros_forge//bazel/toolchain:linux_arm64": ["@eros_forge//bazel/toolchain/cmake:linux_arm64.cmake"],
             "@eros_forge//bazel/toolchain:linux_x86_64_cross_arm64": ["@eros_forge//bazel/toolchain/cmake:linux_x86_64_cross_arm64.cmake"],
             "@eros_forge//bazel/toolchain:linux_arm64_cross_arm64": ["@eros_forge//bazel/toolchain/cmake:linux_arm64_cross_arm64.cmake"],
-            "@eros_forge//bazel/toolchain:auto_x86_64": ["@eros_forge//bazel/toolchain/cmake:linux_x86_64.cmake"],
-            "@eros_forge//bazel/toolchain:auto_arm64": ["@eros_forge//bazel/toolchain/cmake:linux_arm64.cmake"],
             "//conditions:default": [],
         }),
         visibility = ["//visibility:private"],
@@ -38,42 +44,28 @@ def cmake_forge(name, **kwargs):
 
     toolchain_file_target = ":_{}_toolchain_file".format(name)
 
-    # Since rules_foreign_cc's cache_entries doesn't support select,
-    # we create both debug and release targets, and an alias that selects
-    # between them based on the cmake_build_type define.
+    # Base cache entries shared by all build modes. User-provided cache_entries
+    # are merged here; CMAKE_BUILD_TYPE is intentionally NOT taken from the user
+    # — the select() below overrides it so the macro fully controls build mode.
+    base_cache_entries = {
+        "CMAKE_TOOLCHAIN_FILE": "$(execpath {})".format(toolchain_file_target),
+    }
+    base_cache_entries.update(cache_entries)
 
-    # Release target
+    # Single cmake target: the entire cache_entries dict is a select() so that
+    # CMAKE_BUILD_TYPE varies with --config=debug (cmake_build_type=Debug define
+    # set by the debug bazelrc config). Each branch is a complete dict; Bazel
+    # resolves the select at analysis time and expands $(execpath ...) make
+    # variables in the chosen branch's string values.
     cmake(
-        name = "_{}_release".format(name),
-        cache_entries = {
-            "CMAKE_BUILD_TYPE": "Release",
-            "CMAKE_TOOLCHAIN_FILE": "$(execpath {})".format(toolchain_file_target),
-        } | cache_entries,
-        generate_crosstool_file = generate_crosstool_file,
-        data = data + [toolchain_file_target],
-        deps = deps,
-        **kwargs
-    )
-
-    # Debug target
-    cmake(
-        name = "_{}_debug".format(name),
-        cache_entries = {
-            "CMAKE_BUILD_TYPE": "Debug",
-            "CMAKE_TOOLCHAIN_FILE": "$(execpath {})".format(toolchain_file_target),
-        } | cache_entries,
-        generate_crosstool_file = generate_crosstool_file,
-        data = data + [toolchain_file_target],
-        deps = deps,
-        **kwargs
-    )
-
-    # Alias that selects between debug and release based on --define=cmake_build_type
-    native.alias(
         name = name,
-        actual = select({
-            "@eros_forge//bazel/toolchain:cmake_debug": "_{}_debug".format(name),
-            "//conditions:default": "_{}_release".format(name),
+        cache_entries = select({
+            "@eros_forge//bazel/toolchain:cmake_debug": dict(base_cache_entries, CMAKE_BUILD_TYPE = "Debug"),
+            "//conditions:default": dict(base_cache_entries, CMAKE_BUILD_TYPE = "Release"),
         }),
-        visibility = kwargs.get("visibility", ["//visibility:public"]),
+        generate_crosstool_file = generate_crosstool_file,
+        data = data + [toolchain_file_target],
+        deps = deps,
+        visibility = visibility,
+        **kwargs
     )

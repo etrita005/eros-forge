@@ -25,7 +25,7 @@ for mode in "${BUILD_MODES[@]}"; do
 
     BINARY=$(forge_cquery_files "$SRC_DIR" //:hello 'hello_cmake$' -- --config="$PLATFORM_CONFIG" --config="$mode")
     [ -n "$BINARY" ] && [ -f "$BINARY" ] || forge_die "binary not found"
-    CMAKE_LOG=$(forge_find_cmake_log "$SRC_DIR" "$mode")
+    CMAKE_LOG=$(forge_find_cmake_log "$SRC_DIR")
 
     forge_print_binary_info "$BINARY"
 

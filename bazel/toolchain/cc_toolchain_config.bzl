@@ -164,7 +164,16 @@ def _impl(ctx):
                 flag_set(
                     actions = all_link_actions,
                     flag_groups = [
-                        flag_group(flags = ["-fsanitize=thread"]),
+                        flag_group(flags = [
+                            "-fsanitize=thread",
+                            # Explicitly link the TSan runtime after user
+                            # objects. The gcc driver adds -ltsan before user
+                            # objects; with static archives (when the .so is
+                            # unavailable) this leaves __tsan_* symbols
+                            # unresolved. Adding -ltsan here (after user
+                            # objects) ensures the runtime is pulled in.
+                            "-ltsan",
+                        ]),
                     ],
                 ),
             ],

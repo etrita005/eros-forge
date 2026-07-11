@@ -232,6 +232,13 @@ def _extra_variables():
         "CMAKE_FIND_ROOT_PATH_MODE_PROGRAM": "NEVER",
         "CMAKE_FIND_ROOT_PATH_MODE_LIBRARY": "ONLY",
         "CMAKE_FIND_ROOT_PATH_MODE_INCLUDE": "ONLY",
+        # Cross-compilation: CMake's try_compile defaults to building AND
+        # running a test executable. The cross-compiled binary cannot run on
+        # the host, so CMake reports the compiler as "broken". Setting this
+        # to STATIC_LIBRARY makes try_compile only compile (no link, no run),
+        # which is the standard CMake cross-compiling practice. Native builds
+        # are unaffected (their profiles don't call _extra_variables).
+        "CMAKE_TRY_COMPILE_TARGET_TYPE": "STATIC_LIBRARY",
         "CMAKE_ASM_COMPILER": tools["gcc"],
         "CMAKE_LINKER": tools["ld"],
         "CMAKE_AR": tools["ar"],

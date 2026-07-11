@@ -20,6 +20,16 @@ for san in "${SANITIZERS[@]}"; do
     forge_section "Testing sanitizer: $san (platform: $PLATFORM_CONFIG)"
     forge_load_config "$PLATFORM_CONFIG"
 
+    # MSan requires Clang; GCC (both native and cross) lacks it. For native
+    # builds the default rules_cc toolchain silently omits -fsanitize=memory,
+    # so the build succeeds but MSan is a no-op. For cross builds the EROS
+    # cc_toolchain unconditionally adds -fsanitize=memory, which the cross-GCC
+    # rejects. Skip MSan for cross-compilation to avoid a build failure.
+    if [ "$san" = "msan" ] && [ "$FC_IS_CROSS" = "1" ]; then
+        forge_skip "MSan: GCC cross-compiler lacks MSan (requires Clang)"
+        continue
+    fi
+
     forge_build "$SRC_DIR" //:hello //:math_utils_static //:math_utils_shared -- \
         --config="$PLATFORM_CONFIG" --config="$san" || forge_die "build failed for $san"
     forge_aquery "$SRC_DIR" 'mnemonic("CppCompile", deps(//:hello))' -- \

@@ -40,9 +40,12 @@ try-import %workspace%/../../forge/bazel/bazelrc
 
 ```bash
 # 原生编译（自动检测宿主机架构：x86_64 主机 -> linux_x86_64，arm64 主机 -> linux_arm64）
+# 平台约束驱动选择，无需任何 --config；--config=auto 作为兼容别名
+bazel build //:all
+# 等价写法：
 bazel build //:all --config=auto
 
-# 等价地，显式指定平台
+# 显式指定平台
 bazel build //:all --config=linux_x86_64
 
 # 使用 release 配置编译（优化级别 -O3，符号分离）
@@ -53,8 +56,10 @@ bazel build //:all --config=linux_x86_64_cross_arm64
 ```
 
 `--config=auto` 通过 Bazel 平台约束（`@platforms//cpu`）自动匹配宿主机架构，并选择
-对应的原生 CMake 工具链 / Conan profile，无需显式指定 `--config=linux_<arch>`。交叉
-编译场景仍需使用显式的 `linux_*_cross_arm64` 配置。
+对应的原生 CMake 工具链 / Conan profile，无需显式指定 `--config=linux_<arch>`。实际上，
+原生 `config_setting` 现在完全由平台约束驱动，因此即使不指定任何 `--config` 也会自动检测
+宿主机架构；`--config=auto` 作为兼容别名保留。交叉编译场景仍需使用显式的
+`linux_*_cross_arm64` 配置。
 
 ## 环境初始化
 
@@ -176,7 +181,7 @@ Forge 提供以下构建配置：
 
 | 配置                                  | 说明              | 宿主机     | 目标机     |
 | ----------------------------------- | --------------- | ------- | ------- |
-| `--config=auto`                     | 原生编译，自动检测宿主机架构  | 宿主机    | 宿主机    |
+| （无）或 `--config=auto`              | 原生编译，自动检测宿主机架构  | 宿主机    | 宿主机    |
 | `--config=linux_x86_64`             | x86\_64 原生编译    | x86\_64 | x86\_64 |
 | `--config=linux_arm64`              | ARM64 原生编译      | arm64   | arm64   |
 | `--config=linux_x86_64_cross_arm64` | 交叉编译            | x86\_64 | arm64   |
@@ -485,16 +490,18 @@ extra_link_flags = [
 定义构建配置：
 
 ```bazel
-# 平台配置
+# 平台配置（原生：仅设 --platforms，config_setting 由约束驱动）
 build:linux_x86_64 --platforms=@eros_forge//bazel/toolchain:linux_x86_64_platform
 build:linux_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_platform
 
-# 交叉编译配置
-build:linux_x86_64_cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_platform
+# 交叉编译配置（需 --define=eros_config 区分同目标不同宿主的工具链）
+build:linux_x86_64_cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_cross_platform
 build:linux_x86_64_cross_arm64 --extra_toolchains=@eros_forge//bazel/toolchain:cc-toolchain-x86_64-to-arm64
+build:linux_x86_64_cross_arm64 --define=eros_config=linux_x86_64_cross_arm64
 
-build:linux_arm64_cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_platform
+build:linux_arm64_cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_cross_platform
 build:linux_arm64_cross_arm64 --extra_toolchains=@eros_forge//bazel/toolchain:cc-toolchain-arm64-to-arm64
+build:linux_arm64_cross_arm64 --define=eros_config=linux_arm64_cross_arm64
 
 # 发布版本配置
 build:release --compilation_mode=opt
@@ -678,7 +685,7 @@ cmake_forge(
     lib_source = ":src_files",
     out_binaries = ["hello_cmake"],
     cache_entries = {
-        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_SHARED_LIBS": "OFF",
     },
 )
 ```
@@ -719,9 +726,10 @@ bazel/toolchain/cmake/
 
 ### 工作原理
 
-1. `cmake_forge` 宏根据 `--config` 参数通过 `select()` 选择对应的 toolchain 文件
+1. `cmake_forge` 宏根据平台约束（`@platforms//cpu` + `:glibc_native`/`:glibc_cross`）通过 `select()` 选择对应的 toolchain 文件
 2. 将 toolchain 文件路径通过 `CMAKE_TOOLCHAIN_FILE` 传递给 CMake
-3. CMake 使用指定的 toolchain 进行编译，确保与 Bazel 的编译配置一致
+3. `CMAKE_BUILD_TYPE` 通过 `cache_entries` 上的 `select()` 在单一 cmake 目标中切换（`--config=debug` -> Debug，默认 -> Release）
+4. CMake 使用指定的 toolchain 进行编译，确保与 Bazel 的编译配置一致
 
 ### 注意事项
 

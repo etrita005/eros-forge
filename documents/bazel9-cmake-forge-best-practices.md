@@ -190,7 +190,8 @@ rctx.execute([
 LIBRARY_CMAKE_OPTIONS = {
     "BUILD_SHARED_LIBS": "ON",
     "BUILD_TESTING": "OFF",
-    "CMAKE_BUILD_TYPE": "Release",
+    # 注意：CMAKE_BUILD_TYPE 由 cmake_forge 宏通过 --config=debug/release 控制，
+    # 在 cache_entries 中设置会被覆盖。此处不设置 CMAKE_BUILD_TYPE。
     # 其他库特定选项
 }
 ```
