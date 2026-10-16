@@ -1,0 +1,12 @@
+load(":tools.bzl", "lock_update_tool")
+load(":foreign_tools.bzl", "declare_foreign_tools")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(glob(["*.py"]))
+
+declare_foreign_tools()
+
+lock_update_tool(
+    name = "conan_lock_update",
+)

@@ -1,0 +1,9 @@
+{
+    "version": "0.5",
+    "requires": [
+        "broken-digest/1.0#ede691b69c54248e1740d740a7514fdc%1792143521.3344576"
+    ],
+    "build_requires": [],
+    "python_requires": [],
+    "config_requires": []
+}

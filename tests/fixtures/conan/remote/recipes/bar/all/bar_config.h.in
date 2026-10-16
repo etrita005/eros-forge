@@ -1,0 +1,2 @@
+#pragma once
+#define BAR_GENERATED_BIAS @BAR_GENERATED_BIAS@

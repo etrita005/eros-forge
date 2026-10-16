@@ -1,0 +1,2 @@
+[requires]
+broken-build/1.0

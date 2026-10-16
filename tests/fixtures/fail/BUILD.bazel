@@ -1,0 +1,42 @@
+load("//bazel:cmake_conan_forge.bzl", "cmake_build", "conan_install")
+load("//bazel/config:variants.bzl", "cmake_toolchain", "conan_build_profile", "conan_host_profile")
+
+package(default_visibility = ["//visibility:public"])
+
+[cmake_build(
+    name = "missing_" + kind,
+    cmake_lists = "CMakeLists.txt",
+    srcs = ["valid.cc"],
+    toolchain = cmake_toolchain(),
+    exports_json = json.encode(descriptor),
+    tags = ["manual"],
+) for kind, descriptor in {
+    "header": {"headers": ["include/does_not_exist.h"]},
+    "library": {"libraries": [{"name": "missing", "static": "lib/libdoes_not_exist.a"}]},
+    "executable": {"binaries": ["bin/does_not_exist"]},
+}.items()]
+
+cmake_build(name = "pure_library", cmake_lists = "CMakeLists.txt", srcs = ["valid.cc"],
+            toolchain = cmake_toolchain(), exports_json = json.encode({
+                "libraries": [{"name": "valid", "static": "lib/libvalid.a", "pic_static": "lib/libvalid.a"}],
+            }))
+
+conan_install(
+    name = "missing_lock_entry",
+    conanfile = "//tests/fixtures/conan:conanfile.txt",
+    lockfile = "//tests/fixtures/conan:empty.lock",
+    host_profile = conan_host_profile(),
+    build_profile = conan_build_profile(),
+    file_remote = ["//tests/fixtures/conan:remote"],
+    tags = ["manual"],
+)
+
+[conan_install(
+    name = name,
+    conanfile = name + ".txt",
+    lockfile = name + ".lock",
+    host_profile = conan_host_profile(),
+    build_profile = conan_build_profile(),
+    file_remote = ["//tests/fixtures/conan:remote"],
+    tags = ["manual"],
+) for name in ["bad_digest", "broken_recipe"]]

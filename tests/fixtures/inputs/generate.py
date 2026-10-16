@@ -1,0 +1,1 @@
+print("#define FORGE_GENERATED_VALUE 100")

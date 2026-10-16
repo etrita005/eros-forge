@@ -1,0 +1,40 @@
+load("//bazel:deb.bzl", "pkg_eros_deb", "pkg_eros_deb_multiarch", "pkg_eros_tar")
+
+package(default_visibility = ["//visibility:public"])
+
+platform(
+    name = "unknown_cpu",
+    constraint_values = ["@platforms//os:linux"],
+)
+
+pkg_eros_tar(
+    name = "resources_tar",
+    srcs = ["resource.txt"],
+    package_dir = "/opt/eros/forge-checks",
+)
+
+pkg_eros_deb(
+    name = "unknown_architecture",
+    package_name = "forge-checks",
+    data = ":resources_tar",
+    description = "Unknown target CPU must not fall back to all",
+    maintainer = "Forge Tests <forge@example.invalid>",
+)
+
+pkg_eros_deb_multiarch(
+    name = "unsupported_multiarch",
+    package_name = "forge-unsupported",
+    data = "//tests/fixtures/runtime:runtime_tar",
+    presets = ["linux_arm64", "linux_x86_64"],
+    description = "One branch must fail on either supported host",
+    maintainer = "Forge Tests <forge@example.invalid>",
+)
+
+pkg_eros_deb_multiarch(
+    name = "portable_multiarch",
+    package_name = "forge-portable",
+    data = "//tests/fixtures/runtime:runtime_tar",
+    architectures = ["amd64", "arm64"],
+    description = "Native x86 and SDK ARM branches on an x86 execution host",
+    maintainer = "Forge Tests <forge@example.invalid>",
+)

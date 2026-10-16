@@ -1,212 +1,135 @@
-# EROS Debian Packaging
+# Runtime And Debian Packages
 
-EROS Forge 提供的 Debian 包构建插件，支持自动架构检测和多平台打包。
+Load `pkg_eros_tar`, `pkg_eros_deb`, `pkg_eros_deb_multiarch`, and
+`eros_test_package` from `@eros_forge//bazel:deb.bzl`. Native wrappers and install
+maps are in `@eros_forge//bazel:runtime.bzl`.
 
-## 快速开始
+## Runtime-Aware Payloads
 
-### 1. 在 BUILD.bazel 中引入
+The packaging API composes a runtime export with Debian metadata:
 
 ```python
-load("@eros_forge//bazel:deb.bzl", "pkg_eros_deb")
+pkg_eros_tar(
+    name = "payload",
+    srcs = [":app"],
+    package = "my-package",
+)
 
 pkg_eros_deb(
-    name = "my_package_deb",
+    name = "deb",
     package_name = "my-package",
-    data = ":my_data_tar",
-    description = "My package description",
-    maintainer = "Team <team@example.com>",
+    data = ":payload",
+    description = "Private application and runtime closure",
+    maintainer = "Team <team@example.invalid>",
 )
 ```
 
-### 2. 构建 deb 包
+This API fragment assumes a declared `:app` target with a usable runtime
+interface. `eros_cc_binary` and `eros_cc_library` preserve native C++ dependency
+semantics and provide installation metadata, relative RUNPATH and debug exports.
+`eros_install_map(files={label: relative_destination})` assigns explicit paths.
 
-`pkg_eros_deb` 生成**单个** `pkg_deb` 目标，其架构根据目标平台的 cpu 约束自动选择
-（`x86_64` -> `amd64`，`arm64` -> `arm64`），无需也**不会**生成多余的 `_amd64`/`_arm64`
-目标污染 `bazel query //...`。
+`pkg_eros_tar` accepts `srcs`, optional `output_group`, and an output name.
+`package` sets payload identity and its default private root; `package_dir`
+can override the tar prefix. Keep that identity consistent with the deb name.
+`pkg_eros_deb` takes a single tar-producing `data` target;
+`package` and `package_name` name the Debian package and cannot conflict.
 
-```bash
-# 构建 x86_64 (amd64) 架构
-bazel build --config=linux_x86_64 //:my_package_deb
+## Providers And Closure
 
-# 构建 arm64 架构
-bazel build --config=linux_arm64 //:my_package_deb
+`ErosInstallInfo` maps declared files/directories to private relative destinations
+and carries provenance. `ErosDebugInfo` carries symbols and identity manifests.
+The runtime aspect follows `deps` and `data`, combining these with native runfiles.
 
-# 交叉编译到 ARM64（同样得到 arm64 deb）
-bazel build --config=linux_x86_64_cross_arm64 //:my_package_deb
+Runtime-aware exports retain programs, explicitly declared plugins/resources,
+and actual selected shared dependencies. They prune unused shared alternatives
+when static linking is selected. ELF `DT_NEEDED` checks cannot discover dlopen
+plugins, so declare those through `data`/install maps or CMake `runtime_files`.
 
-# 指定版本号
-bazel build --config=linux_x86_64 //:my_package_deb --define=DEB_VERSION=1.2.3
-# 或通过环境变量（需 bazelrc 的 build --action_env=DEB_VERSION，Forge 已默认提供）
-DEB_VERSION=1.2.3 bazel build --config=linux_x86_64 //:my_package_deb
+```text
+/opt/eros/<package>/bin/      programs
+/opt/eros/<package>/lib/      private libraries and plugins
+/opt/eros/<package>/share/    resources
+/opt/eros/lib/               controlled deployment runtime
 ```
 
-如需在一个 workspace 中显式生成多个架构的 deb 目标，使用
-`pkg_eros_deb_multiarch`，它会为每个架构生成一个带 `manual` 标签的 `pkg_deb`
-（如 `my_package_deb_amd64`、`my_package_deb_arm64`）：
+Each shared-library layer needs an appropriate `$ORIGIN` RUNPATH; a program's
+RUNPATH does not automatically resolve all indirect dependencies. Deployment
+must work without the build machine's `LD_LIBRARY_PATH`.
 
-```python
-pkg_eros_deb_multiarch(
-    name = "my_package_deb",
-    package_name = "my-package",
-    data = ":my_data_tar",
-    description = "My package description",
-    maintainer = "Team <team@example.com>",
-    architectures = ["amd64", "arm64"],
-)
-# bazel build //:my_package_deb_arm64 --config=linux_arm64
-```
+`pkg_eros_tar` and `eros_test_package` validate their runtime-aware closure:
+missing private libraries, conflicting destinations, dangling/escaping links,
+and unsafe paths fail. Identical-content files with compatible normalized modes
+are deduplicated, including public export copies; SONAME links are preserved.
 
-## 完整示例
+Keep `libfoo.so -> libfoo.so.1 -> libfoo.so.1.2` and the real file. SDK runtime
+boundaries come from the controlled environment, not an ad hoc scan of installed
+host libraries. A missing SDK runtime identity is not target deployment proof.
 
-### 示例 1：打包动态库
+`pkg_eros_deb` also accepts an arbitrary tar. That wrapping path validates archive
+safety and ELF/architecture agreement, **not a complete dependency closure**.
+Use a runtime-aware exporter when Forge must establish runtime completeness.
 
-```python
-load("@eros_forge//bazel:deb.bzl", "pkg_eros_deb", "pkg_eros_tar")
+Different packages may carry private versions without file ownership conflicts.
+This does not guarantee same-process symbol, global-state, or C++ ABI isolation.
 
-# 准备数据文件（自动提取 output_group）
-pkg_eros_tar(
-    name = "my_package_data",
-    srcs = ["//include/cytoskeleton/module"],
-    output_group = "dynamic_library",
-    package_dir = "/opt/eros/lib",
-    strip_prefix = "include/cytoskeleton/module",  # 剥离路径前缀
-)
+## Architecture And Version
 
-# 创建 deb 包
-pkg_eros_deb(
-    name = "my_package_deb",
-    package_name = "my-package",
-    data = ":my_package_data",
-    description = "My awesome package",
-    maintainer = "EROS Team <team@example.com>",
-    homepage = "https://example.com",
-    section = "libs",
-    priority = "optional",
-    depends = ["libc6"],
-)
-```
+| Target CPU | Debian architecture |
+| --- | --- |
+| x86_64 | `amd64` |
+| ARM64 | `arm64` |
+| Unknown | Analysis error |
 
-### 示例 2：打包可执行文件
+`architecture="all"` is explicit and must not contain target ELF. Explicit
+metadata inconsistent with payload ELF fails. Changing an architecture string
+cannot turn one machine-code payload into another architecture.
 
-```python
-load("@eros_forge//bazel:deb.bzl", "pkg_eros_deb", "pkg_eros_tar")
+Nonempty version inputs have this precedence:
 
-# 准备数据文件
-pkg_eros_tar(
-    name = "my_app_data",
-    srcs = [":my_executable"],
-    package_dir = "/opt/eros/bin",
-)
+1. `version` attribute.
+2. Declared action environment `DEB_VERSION`.
+3. `--define=DEB_VERSION`.
+4. `0.1.0`.
 
-# 创建 deb 包
-pkg_eros_deb(
-    name = "my_app_deb",
-    package_name = "my-application",
-    data = ":my_app_data",
-    description = "My application",
-    maintainer = "EROS Team <team@example.com>",
-    section = "utils",
-    priority = "optional",
-    depends = ["my-library"],
-)
-```
+The shared rc declares `--action_env=DEB_VERSION`. Changing its value affects the
+version action key without `bazel clean`. Control fields and maintainer scripts
+must be explicit; see [deb.bzl](../bazel/deb.bzl) for supported attributes.
 
-## 参数说明
+## Multiarch And Configurations
 
-| 参数 | 类型 | 必需 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| `name` | string | 是 | - | 规则名称 |
-| `package_name` | string | 是 | - | deb 包名称 |
-| `data` | label | 是 | - | pkg_tar 目标 |
-| `description` | string | 是 | - | 包描述 |
-| `maintainer` | string | 是 | - | 维护者信息 |
-| `version` | string | 否 | - | 版本号，可被 `--define=DEB_VERSION` 覆盖 |
-| `homepage` | string | 否 | "https://example.com" | 主页 URL |
-| `section` | string | 否 | "libs" | Debian 分类 |
-| `priority` | string | 否 | "optional" | 优先级 |
-| `depends` | list | 否 | - | 依赖包列表 |
-| `preinst` | label | 否 | - | 安装前脚本 |
-| `postinst` | label | 否 | - | 安装后脚本 |
-| `prerm` | label | 否 | - | 卸载前脚本 |
-| `postrm` | label | 否 | - | 卸载后脚本 |
+`pkg_eros_deb_multiarch` configures the payload dependency through a split
+transition. Each branch sets the actual platform and Forge preset, builds its
+own payload and emits a preset-qualified output with its own provenance.
 
-## pkg_eros_tar
+`architectures=["amd64", "arm64"]` selects native x86_64 and cross ARM64 on a
+compatible x86_64 execution host. Explicit `presets` select supported variants,
+including `linux_arm64` and `linux_arm64_cross_arm64` on an ARM64 host.
 
-用于打包文件并自动提取指定 `output_group` 的宏。
+Two ARM64 variants have the same Debian architecture but different target
+configuration/interpreter conventions. They do not prove a dual-CPU build.
+Unavailable host tools or incomplete branch inputs fail the aggregate. A
+`manual` tag only affects wildcard selection, not transition semantics or an
+explicit dependency's execution.
 
-### 使用示例
+## Debug And Test Archives
 
-```python
-load("@eros_forge//bazel:deb.bzl", "pkg_eros_tar")
+Debug processing retains original link products as build inputs, extracts
+symbols with matching target tools, and strips debug sections only from published
+copies where appropriate. Collect `eros_debug_info` and retain build IDs, hashes,
+source inventories, and variant identity. Missing or substituted symbols fail
+validation; a feature name or split-DWARF filename is insufficient.
 
-# 示例 1：提取动态库并打包
-pkg_eros_tar(
-    name = "my_data",
-    srcs = ["//include/cytoskeleton/module"],
-    output_group = "dynamic_library",  # 提取动态库
-    package_dir = "/opt/eros/lib",
-    strip_prefix = "include/cytoskeleton/module",  # 剥离路径前缀
-)
+Symbol-only archives require their matching payload for validation. Test packages
+combine the runtime layout with symbols, entry points and environment/SDK
+metadata. The debug archive uses distinct directories for transitive native,
+CMake and Conan symbols and records relocatable source inventories.
 
-# 示例 2：直接打包可执行文件
-pkg_eros_tar(
-    name = "my_app",
-    srcs = [":hello_cytoskeleton"],
-    package_dir = "/opt/eros/bin",
-)
-```
+`eros_test_package(srcs=..., entry_points=...)` never executes the program.
+CI extracts it in the matching target runtime, runs the declared entry points,
+captures results/core files and associates the matching symbols.
 
-### 参数说明
-
-| 参数 | 类型 | 必需 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| `name` | string | 是 | - | 规则名称 |
-| `srcs` | list | 是 | - | 源文件标签列表 |
-| `output_group` | string | 是 | - | 要提取的 output_group |
-| `package_dir` | string | 否 | - | 包内目标目录 |
-| `extension` | string | 否 | "tar.gz" | 压缩格式 |
-| `mode` | string | 否 | "0755" | 默认文件权限 |
-| `strip_prefix` | string | 否 | "." | 路径前缀剥离 |
-| `modes` | dict | 否 | - | 特定文件权限 |
-| `owner` | string | 否 | - | 默认所有者 (uid:gid) |
-| `symlinks` | dict | 否 | - | 符号链接定义 |
-
-支持所有 `pkg_tar` 的参数。
-
-## 版本控制
-
-版本号优先级（从高到低）：
-
-1. `version` 参数显式指定
-2. `DEB_VERSION` 环境变量（需 bazelrc 的 `build --action_env=DEB_VERSION`，Forge 已默认提供）
-3. `--define=DEB_VERSION=x.x.x` 命令行参数
-4. 默认值 `0.1.0`
-
-> 注意：环境变量路径不纳入 Bazel action 缓存键，仅修改 `DEB_VERSION` 可能不会重新触发
-> 构建。需要确定性、缓存正确的版本控制时，优先使用 `--define=DEB_VERSION=x.x.x`
->（define 变更会使配置失效）或显式传入 `version = ...`。
-
-## 工作原理
-
-`pkg_eros_deb` 宏会自动：
-
-1. 创建版本文件生成规则（`eros_deb_version`，按上述优先级解析版本）
-2. 创建**单个** `pkg_deb` 规则，其 `architecture` 通过 `select()` 根据目标平台的
-   `@platforms//cpu` 约束自动选择（`x86_64` -> `amd64`，`arm64` -> `arm64`，
-   其他 -> `all`）
-
-生成的目标：
-
-- `//:<name>` - 自动选择架构的单个 deb 包
-
-`pkg_eros_deb_multiarch` 宏会自动：
-
-1. 创建版本文件生成规则
-2. 为 `architectures` 列表中的每个架构创建一个带 `manual` 标签的 `pkg_deb`
-   （如 `//:<name>_amd64`、`//:<name>_arm64`）
-3. 创建一个 `<name>` filegroup 汇总所有架构目标
-
-`pkg_eros_tar` 宏会自动：
-
-1. 创建内部 `filegroup` 提取指定的 `output_group`
-2. 创建 `pkg_tar` 打包文件
+Implementation modules are [runtime.bzl](../bazel/runtime.bzl),
+[deb.bzl](../bazel/deb.bzl), and [the packaging driver](../bazel/packaging/driver.py).
+Behavioral criteria are in [the acceptance design](test-design.md); commands and
+evidence handling are in [tests/README](../tests/README.md).

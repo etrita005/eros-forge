@@ -1,0 +1,21 @@
+load(":settings.bzl", "string_flag")
+load(":variants.bzl", "declare_variant_settings")
+load("//bazel/toolchain:toolchain_data.bzl", "EROS_TOOLCHAINS", "SANITIZERS")
+
+package(default_visibility = ["//visibility:public"])
+
+string_flag(
+    name = "sanitizer",
+    build_setting_default = "none",
+    values = ["none"] + SANITIZERS,
+)
+
+string_flag(
+    name = "preset",
+    build_setting_default = "auto",
+    values = ["auto"] + EROS_TOOLCHAINS.keys(),
+)
+
+declare_variant_settings()
+
+exports_files(["settings.bzl", "validation.bzl", "variants.bzl"])

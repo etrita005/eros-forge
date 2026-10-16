@@ -1,206 +1,53 @@
-# EROS Unified Bazel Configuration
-# Import this file in project .bazelrc: try-import %workspace%/../../forge/bazel/bazelrc
-
-# =============================================================================
-# Platform Configurations
-# =============================================================================
-#
-# Supported configurations:
-# - build:linux_x86_64              : Native x86_64 compilation (host=x86_64, target=x86_64)
-# - build:linux_arm64               : Native ARM64 compilation (host=arm64, target=arm64)
-# - build:linux_x86_64_cross_arm64  : Cross-compilation (host=x86_64, target=arm64)
-# - build:linux_arm64_cross_arm64   : Cross-compilation (host=arm64, target=arm64)
-# - build:auto                      : No-op alias: native config_settings now match
-#                                     purely on platform constraints (@platforms//cpu
-#                                     + :glibc_native), so the DEFAULT target platform
-#                                     (the host) is auto-detected without any --config.
-#                                     Kept for backward compatibility.
-# - (no --config)                   : Same as --config=auto — native build that
-#                                     auto-detects the host architecture.
-#
-# Native configs (linux_x86_64 / linux_arm64) set only --platforms; no
-# --define=eros_config is needed because the config_settings in
-# bazel/toolchain/BUILD.bazel match by constraint_values. Cross configs still
-# set --define=eros_config=<key> because two cross configs can target the same
-# platform (arm64 + glibc_cross) and differ only in the exec (host) platform,
-# which config_setting cannot match.
-#
-# Usage examples:
-#   bazel build //...                               # native, host-arch auto-detected
-#   bazel build //... --config=auto                 # same (explicit)
-#   bazel build //... --config=linux_x86_64
-#   bazel build //... --config=linux_arm64
-#   bazel build //... --config=linux_x86_64_cross_arm64
-#   bazel build //... --config=linux_arm64_cross_arm64
-
-# auto: no-op. Native config_settings match by platform constraints, so the
-# default target platform (host) is auto-detected without any define.
-# --enable_bzlmod is already the default in Bazel 9; it is used here only
-# because bazelrc requires at least one flag per config section.
-build:auto --enable_bzlmod
-
-# linux_x86_64: Native x86_64 compilation (constraint-driven, no define needed)
-build:linux_x86_64 --platforms=@eros_forge//bazel/toolchain:linux_x86_64_platform
-
-# linux_arm64: Native ARM64 compilation (constraint-driven, no define needed)
-build:linux_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_platform
-
-# linux_x86_64_cross_arm64: Cross-compilation from x86_64 to ARM64
-build:linux_x86_64_cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_cross_platform
-build:linux_x86_64_cross_arm64 --extra_toolchains=@eros_forge//bazel/toolchain:cc-toolchain-x86_64-to-arm64
-build:linux_x86_64_cross_arm64 --extra_execution_platforms=@platforms//host
-build:linux_x86_64_cross_arm64 --define=eros_config=linux_x86_64_cross_arm64
-
-# linux_arm64_cross_arm64: Cross-compilation from ARM64 to ARM64 (with custom glibc)
-build:linux_arm64_cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_cross_platform
-build:linux_arm64_cross_arm64 --extra_toolchains=@eros_forge//bazel/toolchain:cc-toolchain-arm64-to-arm64
-build:linux_arm64_cross_arm64 --extra_execution_platforms=@platforms//host
-build:linux_arm64_cross_arm64 --define=eros_config=linux_arm64_cross_arm64
-
-# =============================================================================
-# Environment Variables
-# =============================================================================
-
+# Import this file from consumer workspaces. Labels intentionally use the module name.
 build --action_env=DEB_VERSION
-
-# =============================================================================
-# Default Build Settings
-# =============================================================================
-
-build --cxxopt=-std=c++20
+build --action_env=PYTHONDONTWRITEBYTECODE=1
+build --action_env=PYTHONNOUSERSITE=1
 build --host_cxxopt=-std=c++20
+# Target variants and packaging defines must not leak into native build tools.
+build --incompatible_exclude_starlark_flags_from_exec_config
+build --experimental_exclude_defines_from_exec_config
 
-# =============================================================================
-# Release Build (with separate debug info)
-# =============================================================================
-#
-# -O3 / -DNDEBUG / -g are set as copts so they apply to every selected cc
-# toolchain (the EROS toolchains' opt feature no longer duplicates them).
-# The binary is NOT stripped at link time: separate_debug_info emits split
-# debug files (.dwo), and a packaging step decides whether to strip for
-# release. This keeps release binaries debuggable on the target machine.
-
-build:release --compilation_mode=opt
-build:release --copt=-O3
-build:release --copt=-DNDEBUG
-build:release --copt=-g
-build:release --features=separate_debug_info
-
-# =============================================================================
-# Debug Build
-# =============================================================================
-#
-# Debug mode is decoupled from sanitizers: it only enables debug compilation
-# (-g -O0). Use --config=asan / --config=ubsan / etc. to add sanitizers
-# explicitly on top of (or instead of) --config=debug.
+build:auto --@eros_forge//bazel/config:preset=auto
+build:linux_x86_64 --platforms=@eros_forge//bazel/toolchain:linux_x86_64_platform
+build:linux_x86_64 --@eros_forge//bazel/config:preset=linux_x86_64
+build:linux_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_platform
+build:linux_arm64 --@eros_forge//bazel/config:preset=linux_arm64
+build:linux_x86_64_cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_x86_64_cross_arm64_platform
+build:linux_x86_64_cross_arm64 --@eros_forge//bazel/config:preset=linux_x86_64_cross_arm64
+build:linux_arm64_cross_arm64 --platforms=@eros_forge//bazel/toolchain:linux_arm64_cross_arm64_platform
+build:linux_arm64_cross_arm64 --@eros_forge//bazel/config:preset=linux_arm64_cross_arm64
 
 build:debug --compilation_mode=dbg
-build:debug --copt=-g
-build:debug --copt=-O0
 build:debug --define=cmake_build_type=Debug
-
-# =============================================================================
-# CMake Build Configuration
-# =============================================================================
-#
-# CMake projects need explicit CMAKE_BUILD_TYPE configuration.
-# These settings ensure CMake projects use consistent build options with Bazel.
-#
-# Note: rules_foreign_cc's cmake rule uses the Bazel cc_toolchain, so
-# compiler flags are automatically applied. But CMAKE_BUILD_TYPE must be
-# explicitly set to ensure CMake's internal logic is consistent.
-
-# Release mode for CMake: use -O3 optimization and disable debug assertions
+build:release --compilation_mode=opt
 build:release --define=cmake_build_type=Release
+build:release --features=separate_debug_info
 
-# =============================================================================
-# Test Settings
-# =============================================================================
-#
-# Sanitizers are configured in each test's BUILD.bazel for flexibility:
-# - Regular tests: features = ["asan", "ubsan"]
-# - Concurrent tests: features = ["-asan", "ubsan", "tsan"]
-#
-# This ensures all code (including dependencies) uses the same sanitizer.
-
-test --test_output=errors
-test --test_verbose_timeout_warnings
-
-# =============================================================================
-# Sanitizer Configurations
-# =============================================================================
-#
-# Each sanitizer config sets: the feature, --define=eros_sanitizer (so that
-# cmake_conan_forge selects the matching Conan profile), compilation_mode=dbg
-# and cmake_build_type=Debug. Mutually-exclusive sanitizers are disabled
-# explicitly via --features=-<san> so that combining two --config=... entries
-# never produces an invalid flag set (e.g. ASan + TSan).
-#
-# Note: ASan + UBSan is a valid combination and neither excludes the other.
-# Note: MSan requires all code (including libraries) to be compiled with MSan
-#       and typically needs Clang (GCC MSan support is limited).
-#
-# Usage examples:
-#   bazel build //... --config=asan            # AddressSanitizer
-#   bazel build //... --config=tsan            # ThreadSanitizer
-#   bazel build //... --config=ubsan           # UndefinedBehaviorSanitizer
-#   bazel build //... --config=msan            # MemorySanitizer
-#   bazel build //... --config=no_sanitizer    # disable all sanitizers
-
-# AddressSanitizer (ASan) - Detects memory errors
-# Sanitizer configs set compilation_mode=dbg and cmake_build_type=Debug directly,
-# so --config=asan is self-sufficient (no need to also pass --config=debug).
-# cmake_build_type=Debug is set so that the sanitizer config_settings (e.g.
-# linux_x86_64_asan) are strict supersets of the debug config_settings
-# (linux_x86_64_debug), avoiding select() ambiguity when combining
-# --config=debug --config=asan.
+# ASan + UBSan is normalized from either config order. The canonical spelling
+# --config=asan_ubsan also selects its generated Conan profile directly.
 build:asan --features=asan
-build:asan --features=-tsan
-build:asan --features=-msan
+build:asan --@eros_forge//bazel/config:sanitizer=asan
 build:asan --compilation_mode=dbg
-build:asan --define=eros_sanitizer=asan
 build:asan --define=cmake_build_type=Debug
-
-# ThreadSanitizer (TSan) - Detects data races
-build:tsan --features=tsan
-build:tsan --features=-asan
-build:tsan --features=-ubsan
-build:tsan --features=-msan
-build:tsan --compilation_mode=dbg
-build:tsan --define=eros_sanitizer=tsan
-build:tsan --define=cmake_build_type=Debug
-
-# UndefinedBehaviorSanitizer (UBSan) - Detects undefined behavior
 build:ubsan --features=ubsan
-build:ubsan --features=-tsan
-build:ubsan --features=-msan
+build:ubsan --@eros_forge//bazel/config:sanitizer=ubsan
 build:ubsan --compilation_mode=dbg
-build:ubsan --define=eros_sanitizer=ubsan
 build:ubsan --define=cmake_build_type=Debug
-
-# MemorySanitizer (MSan) - Detects uninitialized memory reads
-build:msan --features=msan
-build:msan --features=-asan
-build:msan --features=-ubsan
-build:msan --features=-tsan
-build:msan --compilation_mode=dbg
-build:msan --define=eros_sanitizer=msan
-build:msan --define=cmake_build_type=Debug
-
-# Disable all sanitizers (for performance testing / baselines)
+build:tsan --features=tsan
+build:tsan --@eros_forge//bazel/config:sanitizer=tsan
+build:tsan --compilation_mode=dbg
+build:tsan --define=cmake_build_type=Debug
+build:asan_ubsan --features=asan
+build:asan_ubsan --features=ubsan
+build:asan_ubsan --@eros_forge//bazel/config:sanitizer=asan_ubsan
+build:asan_ubsan --compilation_mode=dbg
+build:asan_ubsan --define=cmake_build_type=Debug
 build:no_sanitizer --features=-asan
 build:no_sanitizer --features=-ubsan
 build:no_sanitizer --features=-tsan
 build:no_sanitizer --features=-msan
+build:no_sanitizer --@eros_forge//bazel/config:sanitizer=none
 
-# =============================================================================
-# Static C++ runtime linking
-# =============================================================================
-#
-# Statically link libstdc++/libgcc into binaries (self-contained, no runtime
-# dependency on the target's libstdc++). Implemented via explicit linkopts so
-# it works uniformly across the auto-detected native toolchain and the EROS
-# cross toolchain (the static_link_cpp_runtimes feature would additionally
-# require a static_runtime_lib filegroup on the cc_toolchain).
-build:static_cpp_runtime --linkopt=-static-libstdc++
-build:static_cpp_runtime --linkopt=-static-libgcc
+build:static_cpp_runtime --features=static_cpp_runtime
+test --test_output=errors
+test --test_verbose_timeout_warnings

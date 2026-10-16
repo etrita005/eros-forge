@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.24)
+project(leaf LANGUAGES CXX)
+add_library(leaf leaf.cc)
+target_compile_options(leaf PRIVATE -g -fno-inline "-ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=tests/fixtures/conan/remote/recipes/leaf/all")
+target_include_directories(leaf PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
+install(TARGETS leaf ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)
+install(FILES leaf.h DESTINATION include)

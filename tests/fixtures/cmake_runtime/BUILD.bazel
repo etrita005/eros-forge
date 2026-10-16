@@ -1,0 +1,20 @@
+load("//bazel:cmake_forge.bzl", "cmake_forge")
+load("//bazel:deb.bzl", "pkg_eros_deb", "pkg_eros_tar")
+
+filegroup(name = "sources", srcs = glob(["*.cc", "*.h", "*.txt"]))
+
+cmake_forge(
+    name = "app",
+    lib_source = ":sources",
+    out_binaries = ["cmake_app"],
+    out_shared_libs = ["libcmake_plugin.so", "libcmake_private.so"],
+    exports = {
+        "headers": ["include/plugin_api.h"],
+        "includes": ["include"],
+        "binaries": ["bin/cmake_app"],
+        "runtime_files": ["lib/libcmake_plugin.so", "share/cmake/marker.txt"],
+    },
+)
+
+pkg_eros_tar(name = "payload", srcs = [":app"], package = "forge-cmake-runtime")
+pkg_eros_deb(name = "deb", data = ":payload", package_name = "forge-cmake-runtime")

@@ -1,0 +1,10 @@
+{
+    "version": "0.5",
+    "requires": [
+        "leaf/1.0#4859fcb1e2ba0744aab963643ed43cda%1792143975.9846134",
+        "bar/1.0#acd00cc45ee6647726aca3b29ee93dc0%1792143975.982429"
+    ],
+    "build_requires": [],
+    "python_requires": [],
+    "config_requires": []
+}

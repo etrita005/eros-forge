@@ -1,351 +1,131 @@
-# EROS Forge 测试用例集合
+# Forge Acceptance Tests
 
-## 概述
+The [acceptance design](../documents/test-design.md) defines TC cases and
+evidence requirements. The runner executes explicit scopes; fixtures validate
+rules and are not a beginner tutorial collection.
 
-本测试集合用于验证 EROS Forge 构建系统的各项功能，包括：
-- 平台配置（原生编译和交叉编译）
-- 构建模式（Debug 和 Release）
-- Sanitizer 支持（ASan、TSan、MSan、UBSan）
-- CMake 集成
-- Conan 集成
-- 跨模块依赖消费（静态库、动态库、头文件）
+## Commands
 
-**测试统计**:
-- 测试项目数：3
-- 测试用例总数：48+（含 deb 打包冒烟测试）
-- 自动化检查：制品结果验证 + 编译选项验证
+Run from the Forge repository root:
 
-详细测试用例清单请参考：[TEST_GUIDE.md](TEST_GUIDE.md)
-
-> 测试框架已重构：所有平台/工具映射来自单一配置表
-> (`test_config_data.json`，由 `gen_test_config.py` 从工具链源 `generate_files.py`
-> 生成)，公共验证逻辑集中在 `forge_test_lib.sh`，各项目脚本只传入"项目路径 + 期望配置"。
-> 编译选项通过 `bazel aquery` / `cquery` 获取（而非 grep 构建日志），且不再每个配置都
-> `bazel clean`。
-
-## 测试项目
-
-### 1. Bazel9 C++ 简单项目测试
-- 位置：`tests/bazel_simple/`
-- 测试内容：纯 Bazel C++ 项目的构建和验证 + deb 打包冒烟测试
-- 测试用例数：16 (4 个平台配置 + 2 个构建模式 + 4 个 Sanitizer + 4 个依赖消费) + deb 打包
-- 验证项：制品结果、编译选项
-- 依赖消费测试：`consumer/` 子目录验证导出的静态库、动态库和头文件可被其他模块消费
-- Deb 打包测试：`test_configs/test_deb_packaging.sh` 验证 `pkg_eros_deb` 架构自动选择与版本解析
-
-### 2. Bazel9 + CMake 项目测试
-- 位置：`tests/bazel_cmake/`
-- 测试内容：使用 cmake_forge 宏构建 CMake 项目
-- 测试用例数：16 (4 个平台配置 + 2 个构建模式 + 4 个 Sanitizer + 4 个依赖消费)
-- 验证项：制品结果、编译选项、CMake 集成
-- 依赖消费测试：`consumer/` 子目录验证 CMake 构建的库可被其他模块消费
-
-### 3. Bazel9 + CMake + Conan 项目测试
-- 位置：`tests/bazel_cmake_conan/`
-- 测试内容：使用 cmake_conan_forge 宏构建带 Conan 依赖的项目
-- 测试用例数：16 (4 个平台配置 + 2 个构建模式 + 4 个 Sanitizer + 4 个依赖消费)
-- 验证项：制品结果、编译选项、CMake 集成、Conan 依赖
-- 依赖消费测试：`consumer/` 子目录验证 CMake+Conan 构建的库可被其他模块消费
-
-## 测试配置
-
-### 平台配置
-- `--config=linux_x86_64`: x86_64 原生编译
-- `--config=linux_arm64`: ARM64 原生编译
-- `--config=linux_x86_64_cross_arm64`: 交叉编译（x86_64 -> ARM64）
-- `--config=linux_arm64_cross_arm64`: 交叉编译（ARM64 -> ARM64，自定义 glibc）
-
-### 构建模式
-- `--config=debug`: 调试模式（无优化，包含调试信息）
-- `--config=release`: 发布模式（-O3 优化，符号分离）
-
-### Sanitizer 配置
-- `--config=asan`: AddressSanitizer
-- `--config=ubsan`: UndefinedBehaviorSanitizer
-- `--config=tsan`: ThreadSanitizer
-- `--config=msan`: MemorySanitizer（通常需 Clang）
-- `--config=no_sanitizer`: 禁用 Sanitizer
-
-> Sanitizer 与 Debug 解耦：`--config=debug` 仅 `-g -O0`，不默认启用任何 sanitizer。
-> 各 sanitizer 配置自身已设置 `compilation_mode=dbg`，因此 `--config=asan` 可独立使用。
-> 平台配置与 sanitizer 叠加使用，例如 `--config=linux_x86_64 --config=asan`。
-> ASan 与 TSan/MSan 互斥（bazelrc 中通过 `--features=-<san>` 显式互斥）；ASan + UBSan 可组合。
-
-## 环境要求
-
-### 必需工具
-- Bazel 9.0 或更高版本
-- GCC 13 或更高版本
-- Python 3.8 或更高版本
-- CMake 3.16 或更高版本（用于 CMake 项目测试）
-- Conan 2.0 或更高版本（用于 Conan 项目测试）
-
-### 交叉编译环境
-- aarch64-linux-gnu-gcc
-- aarch64-linux-gnu-g++
-- 自定义 glibc（可选）
-
-## 运行测试
-
-### 前置准备
-
-在运行测试之前，请确保：
-1. 已安装所有必需工具（见环境要求章节）
-2. 已设置交叉编译工具链（如需测试交叉编译）
-3. 已安装自定义 glibc 到 `/opt/eros/lib`（如需测试交叉编译）
-
-### 运行所有测试
 ```bash
-cd eros/forge/tests
-python3 test_runner.py --all
+python3 tests/test_runner.py --list
+python3 tests/test_runner.py --tc TC-SAN-01 --report /tmp/kilo/forge-asan.md
+python3 tests/test_runner.py --all --strict --report /tmp/kilo/forge-release.json
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*_unit.py'
+python3 bazel/toolchain/environment_test.py
+python3 bazel/packaging/driver_test.py
+python3 bazel/toolchain/generate_files.py --check
 ```
 
-### 运行指定测试
+`--tc` is repeatable. A base ID selects all its scopes; a complete ID such as
+`TC-ENV-01/local` selects only that scope. Unknown IDs and empty selections fail.
+`--preset` defaults to the supported native host preset. `--jobs` bounds outer
+Bazel actions; direct Bazel builds use `--define=forge_jobs=N` for internal
+CMake/Conan parallelism.
+
+## Tool Prerequisites
+
+Use the controlled compiler/tool environment and a matching native runtime for
+local execution. Cross execution requires the matching target SDK/runtime.
+
+For binary/revision scenarios, explicitly prepare an isolated test server:
+
 ```bash
-# 运行 Bazel 简单项目测试
-python3 test_runner.py --test bazel_simple
-
-# 运行 CMake 项目测试
-python3 test_runner.py --test bazel_cmake
-
-# 运行 CMake + Conan 项目测试
-python3 test_runner.py --test bazel_cmake_conan
+python3 tests/fixtures/conan/verify.py --tc TC-DEP-03 --evidence /tmp/kilo/forge-server-check --preset linux_arm64 --bootstrap-server
 ```
 
-### 运行指定配置测试
+This downloads `conan-server==2.33.0` to `/tmp/kilo/forge-conan-server`, creates a
+loopback-only server with disposable data and stops it on completion. A file
+recipe index is source-only, not a binary/revision server. Ordinary dependency
+builds do not require this server or contact PyPI.
+
+Use installed GDB, `--gdb PATH`, or `FORGE_GDB`. On supported Ubuntu hosts an
+isolated debugger can be extracted without system installation:
+
 ```bash
-# 只测试平台配置
-python3 test_runner.py --test bazel_simple --config platform
-
-# 只测试构建模式
-python3 test_runner.py --test bazel_simple --config build_mode
-
-# 只测试 Sanitizer
-python3 test_runner.py --test bazel_simple --config sanitizer
-
-# 只测试依赖消费
-python3 test_runner.py --test bazel_simple --config dependency
+python3 tests/bootstrap_debugger.py --output /tmp/kilo/forge-gdb
+python3 tests/test_runner.py --tc TC-DBG-01 --gdb /tmp/kilo/forge-gdb/gdb
 ```
 
-### 单独运行测试脚本
-```bash
-# 进入测试项目目录
-cd eros/forge/tests/bazel_simple
+The bootstrap records exact APT candidate versions and archive digests. Its
+wrapper does not export `LD_LIBRARY_PATH` to tested programs. Reports capture
+the selected debugger's version and executable digest.
 
-# 运行平台配置测试
-./test_configs/test_platform_configs.sh
+## Results And Evidence
 
-# 运行构建模式测试
-./test_configs/test_build_modes.sh
+| State | Meaning |
+| --- | --- |
+| PASS | All assertions for the named scope passed |
+| FAIL | A command, output, diagnostic or behavior violated the scope |
+| SKIP | The scope does not apply to the selected platform |
+| BLOCKED | Environment or external execution/evidence prerequisites are unavailable |
 
-# 运行 Sanitizer 测试
-./test_configs/test_sanitizers.sh
+Any FAIL returns `1`. Without failures the runner returns `0`, or `2` with
+`--strict` when the selected scopes are incomplete. Argument errors return `2`.
+Exit zero without strict mode is not full release acceptance.
 
-# 运行依赖消费测试
-./test_configs/test_dependency_consumption.sh
-```
+Each invocation has a new evidence directory under `/tmp/kilo`; `--evidence`
+can select a new/empty directory outside source. `--report` selects a text or
+JSON report, including a persistent ignored `.forge-evidence/` report path.
+Markdown/text reports have a neighboring JSON report.
 
-### 测试执行流程
+The runner announces active scopes and checkpoints before/after each case.
+`run_complete`, expected/recorded scope counts and `active_scope` expose
+interruption. Each case has a result JSON and complete command logs with argv,
+cwd, selected environment, duration and exit code. Pending scopes are not passes.
+Provenance captures source/lock digests and the actual environment/SDK manifest.
 
-测试 runner 会按以下顺序执行测试：
+Normal programs must exit successfully. Sanitizer checks require a real
+diagnostic at the business and dependency functions plus successful independent
+controls. TSan allows at most three independent schedules; a clean schedule is
+a nondetection, not a pass. Unexpected crashes/diagnostics are not retried into
+success.
 
-1. **平台配置测试**
-   - 清理构建缓存
-   - 使用不同平台配置构建项目
-   - 验证生成的二进制文件
-   - 运行程序（如适用）
+## Output Bases And Resources
 
-2. **构建模式测试**
-   - 清理构建缓存
-   - 使用 debug/release 模式构建
-   - 验证编译选项和符号信息
-   - 运行程序
+Each invocation creates its own Bazel output base under the evidence directory,
+uses a bounded JVM and shuts the server down after execution. Artifact lookup
+uses its actual execroot, not mutable workspace `bazel-bin` symlinks.
 
-3. **Sanitizer 测试**
-   - 清理构建缓存
-   - 使用不同 Sanitizer 配置构建
-   - 验证 Sanitizer 插桩
-   - 运行程序（如适用）
+**Shutdown does not delete the output base.** File-by-file tool inputs, external
+repositories and sandbox trees can consume many inodes even with free bytes.
+Before repeated suites inspect `df -h`, `df -i` and output-base inode usage;
+limit retained runs and archive the required logs/artifacts before cleanup.
 
-4. **依赖消费测试**
-   - 在 consumer/ 子目录中构建消费者项目
-   - 验证消费者项目能正确链接库文件和头文件
-   - 验证消费者二进制架构和执行结果
+Recover only a known task-owned base, identified by
+`input_provenance.bazel_output_base` in its report, using
+`bazel --batch --output_base=/absolute/task-owned/base clean --expunge`.
+Do not delete arbitrary shared caches or replace resource management with a
+higher `--jobs` value. Whole-suite runs should be deliberate, not repeated for
+documentation-only changes.
 
-### 测试输出
+The source audit uses file hashes. The user Conan cache audit uses paths, sizes,
+modes, mtime, ctime and links without reading all package payloads. Each cache
+audit has a 30-second deadline; expiration is BLOCKED, not an unbounded wait.
 
-测试执行时会输出：
-- 当前测试项目名称
-- 测试配置信息
-- 构建命令和输出
-- 验证结果（✓/✗）
-- 测试通过/失败状态
+## Fixtures And Environment Scopes
 
-示例输出：
-```
-=========================================
-测试项目：bazel_simple
-=========================================
+| Directory | Contract |
+| --- | --- |
+| `fixtures/basic` | Three build paths and equivalent computation |
+| `fixtures/link` | Headers/defines, real transitive links, static/shared/PIC consumers |
+| `fixtures/conan` | Controlled recipes, locks, revisions, binary hits and source fallback |
+| `fixtures/inputs` | CMake/template/generator/header invalidation in copied source |
+| `fixtures/consumer` | Independent module integration and transition labels |
+| `fixtures/runtime` | Shared chains, SONAME links, data-only plugin/resources |
+| `fixtures/cmake_runtime` | Same-target explicit CMake runtime roots |
+| `fixtures/versions` | Private package version coexistence |
+| `fixtures/debug` | Real source frames, symbols and archives |
+| `fixtures/san` | Runtime-triggered faults and clean/synchronized controls |
+| `fixtures/fail`, `fixtures/checks` | Strict failures, unknown CPU and unsupported branches |
 
-=========================================
-测试类别：平台配置
-=========================================
+Native programs may run only in compatible environments. Temporary-root deb
+extraction checks private layout, not clean target installation/uninstallation.
+Cross ELF/interpreter checks do not prove target glibc agreement or execution.
+Two ARM64 variants do not prove an x86_64/AArch64 CPU matrix.
 
-=========================================
-测试配置：linux_x86_64
-=========================================
-构建命令：bazel build //:hello --config=linux_x86_64 --subcommands
-✓ 架构检查通过：x86_64
-✓ 依赖检查通过
-✓ 程序运行成功
-测试通过：linux_x86_64
-```
-
-## 测试验证内容
-
-### 制品结果验证
-每个测试都会验证以下制品结果：
-
-1. **二进制文件基础验证**
-   - 文件是否存在且可执行
-   - 文件架构是否正确（x86_64 或 aarch64）
-   - 文件大小是否合理
-   - 文件权限是否正确
-
-2. **平台配置相关验证**
-   - 原生编译：验证架构正确
-   - 交叉编译：验证动态链接器和 RUNPATH 设置
-
-3. **构建模式相关验证**
-   - Debug 模式：验证包含调试符号，Sanitizer 启用
-   - Release 模式：验证符号分离，优化级别正确
-
-4. **Sanitizer 相关验证**
-   - 验证 Sanitizer 符号是否存在
-   - 验证 Sanitizer 功能是否正常
-
-5. **依赖库验证**
-   - 验证动态库依赖是否正确
-   - 验证共享库是否正确链接
-
-6. **运行时验证**
-   - 原生编译：程序能够正常运行
-   - 交叉编译：验证架构和链接器配置
-
-详细验证函数实现请参考：[test_utils.py](test_utils.py)
-
-### 编译选项验证
-每个测试都会验证以下编译选项：
-
-1. **平台配置编译选项验证**
-   - 编译器路径是否正确
-   - 目标架构标志是否正确
-   - 交叉编译链接标志是否正确
-
-2. **构建模式编译选项验证**
-   - Debug 模式：-g, -O0/-Og, Sanitizer 标志
-   - Release 模式：-O3, -DNDEBUG, 符号分离标志
-
-3. **Sanitizer 编译选项验证**
-   - 验证 -fsanitize 标志是否正确
-
-4. **C++ 标准验证**
-   - 所有配置必须使用 C++20 标准
-
-详细验证函数实现请参考：[test_utils.py](test_utils.py)
-
-## 测试结果解读
-
-### 成功标志
-- 所有构建命令成功完成
-- 二进制文件架构正确
-- 交叉编译的动态链接器和 RUNPATH 正确设置
-- Release 模式符号分离
-- Sanitizer 正确启用
-- 程序能够正常运行
-
-### 失败排查
-1. **构建失败**
-   - 检查 Bazel 版本是否正确
-   - 检查工具链是否正确安装
-   - 检查环境变量设置
-
-2. **架构不匹配**
-   - 检查平台配置是否正确
-   - 检查交叉编译工具链是否正确安装
-
-3. **动态链接器错误**
-   - 检查自定义 glibc 是否正确安装
-   - 检查工具链配置中的链接器路径
-
-4. **Sanitizer 未启用**
-   - 检查编译选项是否正确传递
-   - 检查是否与其他 Sanitizer 冲突
-
-## 测试报告
-
-测试完成后会生成详细的测试报告，包括：
-- 测试执行时间
-- 测试通过/失败数量
-- 失败测试的详细错误信息
-- 构建日志
-
-报告位置：`tests/reports/test_report_<timestamp>.txt`
-
-## 持续集成
-
-可以将测试集合集成到 CI/CD 流程中：
-
-```yaml
-# .github/workflows/test.yml
-name: EROS Forge Tests
-
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Setup Bazel
-        run: |
-          # 安装 Bazel 9.0
-      - name: Run Tests
-        run: |
-          cd eros/forge/tests
-          python3 test_runner.py --all --report report.txt
-      - name: Upload Report
-        uses: actions/upload-artifact@v3
-        with:
-          name: test-report
-          path: eros/forge/tests/reports/
-```
-
-## 贡献指南
-
-### 添加新测试
-1. 在对应测试项目目录下添加测试脚本
-2. 更新 test_runner.py 以支持新测试
-3. 更新 README.md 文档
-
-### 修改现有测试
-1. 修改对应的测试脚本
-2. 确保测试仍然通过
-3. 更新相关文档
-
-## 文档索引
-
-本测试集合包含以下文档：
-
-| 文档 | 描述 |
-|------|------|
-| [README.md](README.md) | 测试概述（当前文档） |
-| [TEST_GUIDE.md](TEST_GUIDE.md) | **完整测试指南**（包含所有测试用例、环境配置、运行方法、验证说明） |
-
-**推荐阅读**:
-- **快速了解**: 阅读本 README.md
-- **完整指南**: 阅读 [TEST_GUIDE.md](TEST_GUIDE.md) - 包含所有详细信息
-
-## 许可证
-
-本测试集合遵循 EROS 项目的许可证协议。
+Independent-host cache, controlled SDK replacement, target core and CI execution
+scopes require their stated environments and evidence integration. Merely
+registering a scope or provisioning a cache endpoint is not a completed test.
+Use the [acceptance design](../documents/test-design.md) for release gates.

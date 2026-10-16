@@ -1,0 +1,24 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("//bazel:cmake_conan_forge.bzl", "cmake_conan_forge")
+
+cmake_conan_forge(
+    name = "library",
+    conanfile = "//tests/fixtures/conan:conanfile.txt",
+    lockfile = "//tests/fixtures/conan:conan.lock",
+    file_remote = ["//tests/fixtures/conan:remote"],
+    cmake_lists = "CMakeLists.txt",
+    srcs = ["library.cc", "public.h"],
+    extra_srcs = ["settings.cmake", "configured.h.in", "generate.py"],
+    exports = {
+        "headers": ["include/public.h"],
+        "includes": ["include"],
+        "libraries": [
+            {"name": "inputs", "pic_static": "lib/libforge_inputs.a"},
+            {"name": "bar", "pic_static": "conan/bar/lib/libbar.a"},
+            {"name": "leaf", "pic_static": "conan/leaf/lib/libleaf.a"},
+        ],
+        "linkopts": ["-pthread"],
+    },
+)
+
+cc_binary(name = "app", srcs = ["main.cc"], deps = [":library"])

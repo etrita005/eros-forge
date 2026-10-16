@@ -1,0 +1,33 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_import")
+load("//bazel:cmake_conan_forge.bzl", "cmake_conan_forge")
+
+package(default_visibility = ["//visibility:public"])
+
+cmake_conan_forge(
+    name = "foo",
+    conanfile = "//tests/fixtures/conan:conanfile.txt",
+    lockfile = "//tests/fixtures/conan:conan.lock",
+    file_remote = ["//tests/fixtures/conan:remote"],
+    cmake_lists = "CMakeLists.txt",
+    srcs = ["foo.cc", "foo.h"],
+    extra_srcs = ["public_config.h.in", "settings.cmake"],
+    exports = {
+        "headers": ["include/foo.h", "include/public_config.h", "conan/bar/include/forge_dependency.h"],
+        "includes": ["include", "conan/bar/include"],
+        "defines": ["FOO_PUBLIC=1"],
+        "libraries": [
+            {"name": "foo", "static": "lib/libfoo.a", "pic_static": "lib/libfoo.a", "shared": "lib/libfoo.so.1"},
+            {"name": "bar", "pic_static": "conan/bar/lib/libbar.a"},
+            {"name": "leaf", "pic_static": "conan/leaf/lib/libleaf.a"},
+        ],
+        "linkopts": ["-pthread"],
+    },
+)
+
+alias(name = "conan_snapshot", actual = ":foo_conan")
+
+cc_binary(name = "app", srcs = ["main.cc"], deps = [":foo"])
+cc_binary(name = "dynamic_app", srcs = ["main.cc"], deps = [":foo"], linkstatic = False)
+cc_binary(name = "shared_consumer.so", srcs = ["shared.cc"], deps = [":foo"], linkshared = True)
+cc_import(name = "shared_bridge", shared_library = ":shared_consumer.so")
+cc_binary(name = "shared_app", srcs = ["shared_main.cc"], deps = [":shared_bridge"])

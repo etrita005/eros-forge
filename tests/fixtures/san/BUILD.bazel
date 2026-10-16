@@ -1,0 +1,36 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("//bazel:cmake_forge.bzl", "cmake_forge")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "dependency",
+    srcs = ["third_party.cc"],
+    hdrs = ["dependency.h"],
+    linkopts = ["-pthread"],
+)
+
+cc_binary(
+    name = "native",
+    srcs = ["main.cc"],
+    deps = [":dependency"],
+)
+
+filegroup(
+    name = "cmake_sources",
+    srcs = ["CMakeLists.txt", "dependency.h", "main.cc", "third_party.cc"],
+)
+
+cmake_forge(
+    name = "cmake",
+    lib_source = ":cmake_sources",
+    out_binaries = ["san_app"],
+    out_static_libs = ["libsan_dependency.a"],
+)
+
+cc_binary(
+    name = "conan",
+    srcs = ["main.cc", "dependency.h"],
+    deps = ["//tests/fixtures/link:foo"],
+)

@@ -1,0 +1,11 @@
+--- a/bar.cc
++++ b/bar.cc
+@@ -5,7 +5,7 @@
+ #include <mutex>
+ #include <thread>
+ 
+-static int forge_bar_patch_value = 1;
++static int forge_bar_patch_value = 2;
+ 
+ extern "C" __attribute__((noinline)) int forge_dependency_value(int input) {
+   return forge_leaf_value(input) + forge_bar_patch_value + BAR_GENERATED_BIAS;

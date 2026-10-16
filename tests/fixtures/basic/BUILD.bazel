@@ -1,0 +1,28 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("//bazel:cmake_forge.bzl", "cmake_forge")
+load("//bazel:cmake_conan_forge.bzl", "cmake_conan_forge")
+
+cc_binary(
+    name = "native",
+    srcs = ["main.cc"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(name = "cmake_srcs", srcs = ["CMakeLists.txt", "main.cc"])
+
+cmake_forge(
+    name = "cmake",
+    lib_source = ":cmake_srcs",
+    out_binaries = ["forge_basic"],
+)
+
+cmake_conan_forge(
+    name = "conan",
+    conanfile = "//tests/fixtures/conan:conanfile.txt",
+    lockfile = "//tests/fixtures/conan:conan.lock",
+    file_remote = ["//tests/fixtures/conan:remote"],
+    cmake_lists = "CMakeLists.txt",
+    srcs = ["main.cc"],
+    target_name = "forge_basic",
+    out_binary = "forge_basic",
+)

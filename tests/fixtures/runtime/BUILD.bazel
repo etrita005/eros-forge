@@ -1,0 +1,106 @@
+load("//bazel:deb.bzl", "eros_test_package", "pkg_eros_deb", "pkg_eros_deb_multiarch", "pkg_eros_tar")
+load("//bazel:runtime.bzl", "eros_cc_binary", "eros_cc_library", "eros_install_map")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+eros_cc_library(name = "default_names", srcs = ["b.cc"], linkstatic = False)
+eros_cc_binary(name = "default_consumer", srcs = ["default_main.cc"], deps = [":default_names"], linkstatic = False)
+pkg_eros_tar(name = "default_names_tar", srcs = [":default_consumer"], package = "forge-default-native")
+
+eros_cc_library(
+    name = "b",
+    srcs = ["b.cc"],
+    install_name = "libforge_b.so.1.2",
+    soname = "libforge_b.so.1",
+    link_name = "libforge_b.so",
+    linkstatic = False,
+)
+
+eros_cc_library(
+    name = "a",
+    srcs = ["a.cc"],
+    deps = [":b"],
+    install_name = "libforge_a.so.1.2",
+    soname = "libforge_a.so.1",
+    link_name = "libforge_a.so",
+    linkstatic = False,
+)
+
+eros_cc_library(
+    name = "plugin_dependency",
+    srcs = ["plugin_dependency.cc"],
+    install_name = "libforge_plugin_dependency.so.1.0",
+    soname = "libforge_plugin_dependency.so.1",
+    link_name = "libforge_plugin_dependency.so",
+    linkstatic = False,
+)
+
+eros_cc_library(
+    name = "plugin",
+    srcs = ["plugin.cc"],
+    deps = [":plugin_dependency"],
+    install_name = "libforge_plugin.so.1.0",
+    soname = "libforge_plugin.so.1",
+    link_name = "libforge_plugin.so",
+    linkstatic = False,
+)
+
+eros_install_map(
+    name = "resource",
+    files = {"marker.txt": "share/runtime-marker.txt"},
+)
+
+eros_cc_binary(
+    name = "app",
+    srcs = ["main.cc"],
+    deps = [":a"],
+    data = [":plugin", ":resource"],
+    linkopts = ["-ldl"],
+    linkstatic = False,
+)
+
+cc_binary(
+    name = "raw_consumer",
+    srcs = ["main.cc"],
+    deps = [":a"],
+    data = [":plugin", ":resource"],
+    linkopts = ["-ldl"],
+    linkstatic = False,
+)
+
+eros_cc_binary(
+    name = "static_app",
+    srcs = ["main.cc"],
+    deps = [":a"],
+    data = [":plugin", ":resource"],
+    linkopts = ["-ldl"],
+    linkstatic = True,
+)
+
+pkg_eros_tar(name = "runtime_tar", srcs = [":app"], package = "forge-runtime")
+pkg_eros_tar(name = "static_tar", srcs = [":static_app"], package = "forge-runtime-static")
+pkg_eros_deb(name = "runtime_deb", data = ":runtime_tar", package = "forge-runtime")
+eros_test_package(name = "test_package", srcs = [":app"], package = "forge-runtime", entry_points = ["bin/app"])
+pkg_eros_deb_multiarch(name = "multiarch", data = ":runtime_tar", package = "forge-runtime", architectures = ["arm64", "arm64_cross"])
+pkg_eros_deb_multiarch(name = "unsupported_multiarch", data = ":runtime_tar", package = "forge-runtime", presets = ["linux_arm64", "linux_x86_64"])
+
+pkg_eros_deb(name = "explicit_version", data = ":runtime_tar", package = "forge-runtime", version = "7.8.9")
+pkg_eros_deb(name = "default_version", data = ":runtime_tar", package = "forge-runtime")
+pkg_eros_deb(name = "bad_architecture", data = ":runtime_tar", package = "forge-runtime", architecture = "amd64", tags = ["manual"])
+pkg_eros_deb(name = "bad_all", data = ":runtime_tar", package = "forge-runtime", architecture = "all", tags = ["manual"])
+pkg_eros_tar(name = "resources_tar", srcs = [":resource"], package = "forge-resources")
+pkg_eros_tar(name = "direct_resource_tar", srcs = ["marker.txt"], package = "forge-direct-resources")
+pkg_eros_deb(name = "resources_all", data = ":resources_tar", package = "forge-resources", architecture = "all")
+pkg_eros_deb(name = "unknown_cpu", data = ":resources_tar", package = "forge-resources", tags = ["manual"])
+platform(name = "unknown_cpu_platform", constraint_values = ["@platforms//os:linux", "@platforms//cpu:riscv64"])
+
+eros_install_map(name = "conflicting_resource", files = {"conflict.txt": "share/runtime-marker.txt"})
+pkg_eros_tar(name = "collision", srcs = [":resource", ":conflicting_resource"], package = "forge-runtime", tags = ["manual"])
+pkg_eros_tar(name = "broken_closure", srcs = [":plugin"], output_group = "eros_runtime_files", package = "forge-runtime", tags = ["manual"])
+eros_install_map(name = "missing_plugin_map", files = {"not-present.so": "lib/missing-plugin.so"}, tags = ["manual"])
+pkg_eros_tar(name = "missing_plugin", srcs = [":missing_plugin_map"], package = "forge-runtime", tags = ["manual"])
+
+genrule(name = "escaping_link", outs = ["escape.so"], cmd = "ln -s /etc/passwd $@", tags = ["manual"])
+eros_install_map(name = "escaping_map", files = {":escaping_link": "lib/escape.so"}, tags = ["manual"])
+pkg_eros_tar(name = "symlink_escape", srcs = [":escaping_map"], package = "forge-runtime", tags = ["manual"])

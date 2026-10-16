@@ -1,35 +1,10 @@
-# Copyright (c) 2024 EROS Project
-#
-# Shared platform constraint lists. Loaded by BUILD.bazel to avoid duplicating
-# the same constraint_values across every config_setting, platform, and
-# eros_cc_toolchain. Editing a list here updates all dependent definitions
-# in unison, preventing drift that could cause silent wrong-branch select()
-# fallthrough or ambiguous-select errors.
+"""Execution CPU and target ABI are independent preset constraints."""
 
-NATIVE_X86_64 = [
-    "@platforms//os:linux",
-    "@platforms//cpu:x86_64",
-    ":glibc_native",
-]
+def exec_constraints(cpu):
+    return ["@platforms//os:linux", "@platforms//cpu:" + cpu]
 
-NATIVE_ARM64 = [
-    "@platforms//os:linux",
-    "@platforms//cpu:arm64",
-    ":glibc_native",
-]
-
-CROSS_ARM64 = [
-    "@platforms//os:linux",
-    "@platforms//cpu:arm64",
-    ":glibc_cross",
-]
-
-EXEC_X86_64 = [
-    "@platforms//os:linux",
-    "@platforms//cpu:x86_64",
-]
-
-EXEC_ARM64 = [
-    "@platforms//os:linux",
-    "@platforms//cpu:arm64",
-]
+def target_constraints(cfg):
+    result = exec_constraints(cfg["target_cpu"]) + ["//bazel/toolchain:glibc_" + ("cross" if cfg["is_cross"] else "native")]
+    if cfg["is_cross"]:
+        result.append("//bazel/toolchain:from_" + cfg["host_cpu"])
+    return result

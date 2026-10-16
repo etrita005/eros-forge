@@ -1,0 +1,2 @@
+[requires]
+broken-digest/1.0

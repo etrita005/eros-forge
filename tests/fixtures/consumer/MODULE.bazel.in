@@ -1,0 +1,3 @@
+module(name = "forge_external_consumer", version = "0.1.0")
+bazel_dep(name = "eros_forge", version = "0.1.0")
+local_path_override(module_name = "eros_forge", path = @FORGE_ROOT@)

@@ -1,0 +1,1 @@
+forge-checks-resource-only

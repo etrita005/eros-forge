@@ -1,0 +1,9 @@
+{
+    "version": "0.5",
+    "requires": [
+        "broken-build/1.0#19bd31e203552e7e5a105cf4671161bc%1792143521.5267184"
+    ],
+    "build_requires": [],
+    "python_requires": [],
+    "config_requires": []
+}

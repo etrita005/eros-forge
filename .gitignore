@@ -1,7 +1,5 @@
 # Bazel
 bazel-*
-*.lock
-MODULE.bazel.lock
 
 # IDE
 .vscode/
@@ -26,3 +24,11 @@ Thumbs.db
 # Python
 __pycache__/
 *.pyc
+*.pyo
+.pytest_cache/
+
+# Repo-local tool state (isolation homes live in /tmp; these guard overrides).
+.conan2/
+
+# Local acceptance evidence (reports are written outside the source tree).
+.forge-evidence/

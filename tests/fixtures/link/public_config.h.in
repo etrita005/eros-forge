@@ -1,0 +1,2 @@
+#pragma once
+#define FORGE_PUBLIC_EXPECTED @FORGE_PUBLIC_EXPECTED@

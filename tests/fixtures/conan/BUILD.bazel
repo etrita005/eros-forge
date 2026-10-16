@@ -1,0 +1,16 @@
+load("//bazel:cmake_conan_forge.bzl", "conan_install")
+load("//bazel/config:variants.bzl", "conan_build_profile", "conan_host_profile")
+
+package(default_visibility = ["//visibility:public"])
+
+filegroup(name = "remote", srcs = glob(["remote/**"]))
+exports_files(["conan.lock", "conanfile.txt", "empty.lock"])
+
+conan_install(
+    name = "with_tool_requires",
+    conanfile = "tool_requires/conanfile.txt",
+    lockfile = "tool_requires/conan.lock",
+    file_remote = [":remote"],
+    host_profile = conan_host_profile(),
+    build_profile = conan_build_profile(),
+)

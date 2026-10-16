@@ -1,0 +1,9 @@
+load("//bazel:deb.bzl", "pkg_eros_deb", "pkg_eros_tar")
+
+package(default_visibility = ["//visibility:public"])
+exports_files(["main.cc", "version.cc"])
+
+pkg_eros_tar(name = "v1_tar", srcs = ["//tests/fixtures/versions/v1:app"], package = "forge-version-one")
+pkg_eros_tar(name = "v2_tar", srcs = ["//tests/fixtures/versions/v2:app"], package = "forge-version-two")
+pkg_eros_deb(name = "v1_deb", data = ":v1_tar", package = "forge-version-one", version = "1.0.0")
+pkg_eros_deb(name = "v2_deb", data = ":v2_tar", package = "forge-version-two", version = "2.0.0")

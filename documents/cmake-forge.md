@@ -1,338 +1,99 @@
-# cmake_forge 技术文档
+# CMake Integration
 
-## 概述
+`cmake_forge` builds a CMake project through `rules_foreign_cc` and publishes a
+strict install interface. Load it from `@eros_forge//bazel:cmake_forge.bzl`.
+Platform and mode selection are described in the [root guide](../README.md).
 
-`cmake_forge` 是 EROS 项目中用于构建纯 CMake 项目（无 Conan 依赖）的 Bazel 规则。它基于 `rules_foreign_cc` 的 `cmake` 规则，提供了与 EROS 工具链的集成。
+## Declared Sources
 
-## 设计目标
-
-1. **简化使用**：提供简洁的 API 来构建 CMake 项目
-2. **工具链集成**：自动选择正确的 CMake 工具链文件
-3. **构建类型支持**：支持 Debug 和 Release 构建模式
-
-## 与 cmake_conan_forge 的区别
-
-| 特性 | cmake_forge | cmake_conan_forge |
-|------|-------------|-------------------|
-| 依赖管理 | 无 | Conan |
-| 底层实现 | rules_foreign_cc | 自定义规则 |
-| 交叉编译 | 依赖工具链文件 | 完全支持 |
-| 适用场景 | 简单 CMake 项目 | 需要 Conan 依赖的项目 |
-
-## 架构
-
-```
-cmake_forge (宏)
-    ├── native.filegroup - 选择工具链文件
-    └── cmake - 单一构建目标（CMAKE_BUILD_TYPE 通过 select() 在 cache_entries 上切换）
-```
-
-## 规则详解
-
-### cmake_forge (宏)
-
-用户入口宏，创建 CMake 构建目标。
-
-#### 参数
-
-| 参数 | 类型 | 必需 | 说明 |
-|------|------|------|------|
-| `name` | string | 是 | 规则名称 |
-| `cache_entries` | dict | 否 | CMake 缓存变量 |
-| `generate_crosstool_file` | bool | 否 | 是否生成交叉编译工具文件 |
-| `data` | label_list | 否 | 额外的数据依赖 |
-| `**kwargs` | - | 否 | 传递给 cmake 规则的其他参数 |
-
-#### 使用示例
-
-```python
-load("@eros_forge//bazel:cmake_forge.bzl", "cmake_forge")
-
-cmake_forge(
-    name = "my_lib",
-    lib_name = "mylib",
-    lib_source = ":srcs",
-    out_static_libs = ["libmylib.a"],
-    cache_entries = {
-        "BUILD_SHARED_LIBS": "OFF",
-    },
-)
-```
-
-### 工具链文件选择
-
-`cmake_forge` 使用 `select` 根据平台配置选择正确的工具链文件：
-
-```python
-native.filegroup(
-    name = "_{}_toolchain_file".format(name),
-    srcs = select({
-        "@eros_forge//bazel/toolchain:linux_x86_64": ["@eros_forge//bazel/toolchain/cmake:linux_x86_64.cmake"],
-        "@eros_forge//bazel/toolchain:linux_arm64": ["@eros_forge//bazel/toolchain/cmake:linux_arm64.cmake"],
-        "@eros_forge//bazel/toolchain:linux_x86_64_cross_arm64": ["@eros_forge//bazel/toolchain/cmake:linux_x86_64_cross_arm64.cmake"],
-        "@eros_forge//bazel/toolchain:linux_arm64_cross_arm64": ["@eros_forge//bazel/toolchain/cmake:linux_arm64_cross_arm64.cmake"],
-        "//conditions:default": [],
-    }),
-)
-```
-
-### 构建类型支持
-
-`cmake_forge` 通过在 `cache_entries` 上使用 `select()` 来切换 `CMAKE_BUILD_TYPE`，无需创建多个 cmake 目标。`--config=debug` 设置 `--define=cmake_build_type=Debug`，匹配 `cmake_debug` config_setting，使 select 选中 Debug 分支；默认（含 `--config=release`）选中 Release 分支。
-
-```python
-# 单一 cmake 目标：cache_entries 是一个 select()，每个分支是完整的 dict
-cmake(
-    name = name,
-    cache_entries = select({
-        "@eros_forge//bazel/toolchain:cmake_debug": dict(base_cache_entries, CMAKE_BUILD_TYPE = "Debug"),
-        "//conditions:default": dict(base_cache_entries, CMAKE_BUILD_TYPE = "Release"),
-    }),
-    ...
-)
-```
-
-使用 `--config=debug` 或 `--config=release` 来选择构建类型：
-
-```bash
-# Release 模式（默认）
-bazel build //:my_lib --config=linux_arm64
-
-# Debug 模式
-bazel build //:my_lib --config=linux_arm64 --config=debug
-```
-
-## 平台配置
-
-### 支持的平台配置
-
-| 配置名称 | 说明 |
-|----------|------|
-| `linux_x86_64` | x86_64 原生编译 |
-| `linux_arm64` | ARM64 原生编译 |
-| `linux_x86_64_cross_arm64` | x86_64 交叉编译到 ARM64 |
-| `linux_arm64_cross_arm64` | ARM64 交叉编译到 ARM64 |
-
-## 工具链文件
-
-工具链文件位于 `eros/forge/bazel/toolchain/cmake/` 目录：
-
-### linux_x86_64.cmake
-
-```cmake
-set(CMAKE_SYSTEM_NAME Linux)
-set(CMAKE_SYSTEM_PROCESSOR x86_64)
-
-set(CMAKE_C_COMPILER "/usr/bin/gcc")
-set(CMAKE_CXX_COMPILER "/usr/bin/g++")
-```
-
-### linux_arm64.cmake
-
-```cmake
-set(CMAKE_SYSTEM_NAME Linux)
-set(CMAKE_SYSTEM_PROCESSOR aarch64)
-
-set(CMAKE_C_COMPILER "/usr/bin/gcc")
-set(CMAKE_CXX_COMPILER "/usr/bin/g++")
-```
-
-### linux_x86_64_cross_arm64.cmake / linux_arm64_cross_arm64.cmake
-
-```cmake
-set(CMAKE_SYSTEM_NAME Linux)
-set(CMAKE_SYSTEM_PROCESSOR aarch64)
-
-set(CMAKE_C_COMPILER "/usr/bin/aarch64-linux-gnu-gcc")
-set(CMAKE_CXX_COMPILER "/usr/bin/aarch64-linux-gnu-g++")
-
-set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
-set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
-set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
-set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
-
-set(CMAKE_FIND_ROOT_PATH "/usr/aarch64-linux-gnu")
-
-set(CMAKE_EXE_LINKER_FLAGS "-L/usr/lib/gcc/aarch64-linux-gnu/13 -L/usr/aarch64-linux-gnu/lib -Wl,--rpath=/opt/eros/lib -Wl,--dynamic-linker=/opt/eros/lib/ld-linux-aarch64.so.1")
-```
-
-## 构建命令
-
-### 原生编译
-
-```bash
-# ARM64 原生编译（Release 模式，默认）
-bazel build //:my_lib --config=linux_arm64
-
-# ARM64 原生编译（Debug 模式）
-bazel build //:my_lib --config=linux_arm64 --config=debug
-
-# x86_64 原生编译
-bazel build //:my_lib --config=linux_x86_64
-```
-
-### 交叉编译
-
-```bash
-# 交叉编译到 ARM64（Release 模式）
-bazel build //:my_lib --config=linux_arm64_cross_arm64 --config=release
-
-# 交叉编译到 ARM64（Debug 模式）
-bazel build //:my_lib --config=linux_arm64_cross_arm64 --config=debug
-```
-
-## 常见参数
-
-### lib_name
-
-CMake 项目的库名称。
-
-### lib_source
-
-源代码文件组，通常使用 `glob` 或 `filegroup`。
-
-```python
-filegroup(
-    name = "srcs",
-    srcs = glob(["src/**/*.cpp", "include/**/*.h"]),
-)
-
-cmake_forge(
-    name = "my_lib",
-    lib_name = "mylib",
-    lib_source = ":srcs",
-)
-```
-
-### out_static_libs / out_shared_libs
-
-指定输出的库文件。
+The `lib_source` filegroup must contain everything configuration, compilation,
+generation, and installation read: CMakeLists, included `.cmake`, C/C++ sources,
+headers, templates, patches, scripts, and configuration files.
 
 ```python
 cmake_forge(
-    name = "my_lib",
-    lib_name = "mylib",
-    lib_source = ":srcs",
-    out_static_libs = ["libmylib.a"],
-    out_shared_libs = ["libmylib.so"],
+    name = "foo",
+    lib_source = ":sources",
+    out_static_libs = ["libfoo.a"],
+    cache_entries = {"BUILD_TESTING": "OFF"},
 )
 ```
 
-### out_binaries
+This is an API fragment, not a complete project. The project must actually
+install the declared library. Use `out_binaries` and `out_shared_libs` for other
+installed products; `exports` defines the public interface when explicit control
+is needed.
 
-指定输出的可执行文件。
+Pin downloaded source with a verified archive digest or fixed commit including
+submodules. Keep module resolution locks in version control. Ordinary builds
+must not clone a moving branch head.
 
-```python
-cmake_forge(
-    name = "my_app",
-    lib_name = "myapp",
-    lib_source = ":srcs",
-    out_binaries = ["myapp"],
-)
-```
+Bazel globs stop at nested package boundaries. Expose vendored subpackages
+explicitly. Do not remove project BUILD files to hide the boundary; any controlled
+vendoring transformation must be limited to its intended directories.
 
-## 限制
+## Install And Export
 
-1. **CMAKE_BUILD_TYPE 由宏控制**：`cmake_forge` 通过 `select()` 在 `cache_entries` 上切换 `CMAKE_BUILD_TYPE`，用户在 `cache_entries` 中传入的 `CMAKE_BUILD_TYPE` 会被覆盖。构建类型仅通过 `--config=debug` / `--config=release` 控制。
-2. **交叉编译依赖 rules_foreign_cc**：某些复杂的交叉编译场景可能需要使用 `cmake_conan_forge`
-3. **无依赖管理**：不集成 Conan，需要手动管理依赖
+Use `cmake --install` with known `bin`, `lib`, and `include` destinations.
+The adapter validates exact declared paths, file type/magic, executable
+permissions, and shared-library SONAME naming. It does not search for the first
+matching basename or create placeholder programs.
 
-## 与 rules_foreign_cc 的关系
+The optional `exports` descriptor is shared with the
+[CMake/Conan adapter](cmake-conan-forge.md#analysis-time-interface). It defines
+headers, include roots, public defines, logical library alternatives, link items,
+programs, and runtime files. It is also usable without Conan.
 
-`cmake_forge` 是 `rules_foreign_cc` 的 `cmake` 规则的封装，主要添加了：
+For a versioned shared library, use its runtime SONAME path, such as
+`lib/libfoo.so.1`, as `shared`. The install tree keeps the development alias and
+real versioned file. Individual exported File copies may dereference install
+symlinks; the complete tree remains the source of installation relationships.
 
-1. 自动工具链文件选择
-2. 构建类型切换（通过 `cache_entries` 上的 `select()`，单一目标）
-3. EROS 平台配置集成
+`exports.runtime_files` declares dlopen-only plugins and resources as runtime
+roots. `data` and explicit install mappings attach further runtime targets.
+Use the [runtime-aware packaging path](deb-packaging.md) to validate the closure
+and payload architecture. File-format validation alone is not an ELF-machine
+architecture check.
 
-底层仍然使用 `rules_foreign_cc` 的实现：
+CMake programs are ordinary file outputs, not a promise that the library target
+is runnable with `bazel run`. Native consumers link through `deps`; test exports
+provide explicit program entry points and layouts.
 
-```python
-load("@rules_foreign_cc//foreign_cc:cmake.bzl", "cmake")
-```
+## Flags And Tools
 
-## 最佳实践
+Forge selects the generated toolchain, CMAKE_BUILD_TYPE, sanitizer configuration,
+and debug requirements. Typed compiler arguments retain their argument boundaries.
+The flags overlay is a target-configured `data` input; execution tools use
+`build_data`. Target ABI flags must not be generated under an exec transition.
 
-### 1. 使用 filegroup 组织源代码
+`--define=forge_jobs=N` controls the internal build budget. Bazel `--jobs=N`
+controls outer action parallelism. Neither is a disk/inode retention policy.
 
-```python
-filegroup(
-    name = "srcs",
-    srcs = glob([
-        "src/**/*.cpp",
-        "src/**/*.h",
-        "include/**/*.h",
-    ]),
-    visibility = ["//visibility:private"],
-)
+Do not use undeclared `/usr/include`, `/usr/lib`, or system generators as a
+dependency shortcut. Controlled installed tools require validated identities and
+declared inputs; other dependencies need explicit targets.
 
-cmake_forge(
-    name = "my_lib",
-    lib_name = "mylib",
-    lib_source = ":srcs",
-    out_static_libs = ["libmylib.a"],
-    visibility = ["//visibility:public"],
-)
-```
+## Cross Configuration
 
-### 2. 使用 cache_entries 配置 CMake
+ARM64 cross presets use GCC 13 `aarch64-linux-gnu` tools. Their default compiler
+headers/link libraries remain relevant inputs. `/opt/eros` supplies deployment
+interpreter/RPATH conventions and a CMake search root; it is not automatically
+the compiler's full sysroot. Follow the SDK validation requirements in the
+[technical design](technical-design.md#toolchains).
 
-```python
-cmake_forge(
-    name = "my_lib",
-    lib_name = "mylib",
-    lib_source = ":srcs",
-    cache_entries = {
-        "BUILD_SHARED_LIBS": "OFF",
-        "ENABLE_TESTS": "OFF",
-        "MY_FEATURE": "ON",
-    },
-    out_static_libs = ["libmylib.a"],
-)
-```
+`try_compile()` compiles and normally links but does not run the result.
+`try_run()` requires maintained target values or a real executor. Do not fabricate
+successful runtime results. `CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY` only
+changes a probe; it cannot replace actual executable linking or target execution.
 
-### 3. 添加依赖
+## Symbols And Cache
 
-```python
-cmake_forge(
-    name = "my_lib",
-    lib_name = "mylib",
-    lib_source = ":srcs",
-    data = [
-        "@some_external_lib//:headers",
-    ],
-    out_static_libs = ["libmylib.a"],
-)
-```
+With `separate_debug_info`, collect `eros_debug_info`, preserve its identity and
+source records, and verify GDB source resolution. Release remains optimized.
+Incomplete split DWARF is not an independently usable symbol set.
 
-## 故障排除
-
-### 1. 找不到工具链文件
-
-**问题**：构建时报错找不到工具链文件。
-
-**解决方案**：确保在 MODULE.bazel 中正确引用了 eros_forge：
-
-```python
-bazel_dep(name = "eros_forge", repo_name = "eros_forge")
-local_path_override(
-    module_name = "eros_forge",
-    path = "//eros/forge",
-)
-```
-
-### 2. 交叉编译链接错误
-
-**问题**：交叉编译时链接到宿主机库。
-
-**解决方案**：检查工具链文件中的 `CMAKE_FIND_ROOT_PATH` 设置，确保使用目标机的库路径。
-
-### 3. 构建类型不生效
-
-**问题**：Debug 构建没有生成调试符号。
-
-**解决方案**：使用 `--config=debug` 来选择 Debug 模式：
-
-```bash
-bazel build //:my_lib --config=linux_arm64 --config=debug
-```
+The Foreign-CC action environment/tool boundary must be reviewed in the actual
+action graph. A toolchain feature or local incremental build is not proof of
+independent-machine cache reuse. Use the environment and cache scenarios in
+[the acceptance design](test-design.md); execution instructions are in
+[tests/README](../tests/README.md).

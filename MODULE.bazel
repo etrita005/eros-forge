@@ -4,25 +4,24 @@ module(
     compatibility_level = 1,
 )
 
-# Dependencies
 bazel_dep(name = "rules_cc", version = "0.2.14")
 bazel_dep(name = "rules_pkg", version = "1.0.1")
 bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
 
-# Register toolchains for all EROS projects
-# - cc-toolchain-x86_64-linux: x86_64 native compilation (on x86_64 host)
-# - cc-toolchain-arm64-linux-native: ARM64 native compilation (on ARM64 host)
-# - cc-toolchain-arm64-linux-cross: Cross-compilation from x86_64 to ARM64
+eros_host_tools = use_extension("//bazel/toolchain:host_tools.bzl", "eros_host_tools")
+use_repo(eros_host_tools, "eros_host_tools")
+
 register_toolchains(
+    "//bazel/tools:foreign_cmake_toolchain",
+    "//bazel/tools:foreign_make_toolchain",
+    "//bazel/tools:foreign_m4_toolchain",
     "//bazel/toolchain:cc-toolchain-linux-x86_64",
     "//bazel/toolchain:cc-toolchain-linux-arm64",
     "//bazel/toolchain:cc-toolchain-x86_64-to-arm64",
     "//bazel/toolchain:cc-toolchain-arm64-to-arm64",
+    "//bazel/toolchain:reject-unsupported-linux-x86_64",
+    "//bazel/toolchain:reject-unsupported-linux-arm64",
+    "//bazel/toolchain:reject-unsupported-linux-x86_64-cross-arm64",
+    "//bazel/toolchain:reject-unsupported-linux-arm64-cross-arm64",
 )
-
-# Expose the host compiler/binutils as declared cc_toolchain inputs (copies of
-# the native and aarch64-linux-gnu cross tools). Required for remote cache
-# correctness: tool binary content becomes part of each cc action's digest.
-eros_host_tools = use_extension("//bazel/toolchain:host_tools.bzl", "eros_host_tools")
-use_repo(eros_host_tools, "eros_host_tools")
