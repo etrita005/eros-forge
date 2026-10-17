@@ -1,8 +1,10 @@
-# Beginner Example Plan
+# Beginner Example Roadmap
 
-Status: design only. This document proposes teaching projects; it does not
-provide implemented example directories, source files, BUILD files, or a runnable
-tutorial suite. Public API references remain in the [main guide](../README.md).
+Status: Batch A, lessons 01-04, is implemented in the shared
+[examples workspace](../examples/README.md). Its `check.py` builds and runs the
+native lessons in Debug/Release. Batches B and C remain planned and are not
+presented as implemented or validated. Public API references are in the
+[main guide](../README.md).
 
 ## Learning Goals
 
@@ -18,7 +20,7 @@ header-only substitutes would hide the linking lesson.
 
 ## Workspace Design
 
-The proposed location is one `examples/` Bazel workspace with one shared module
+The location is one `examples/` Bazel workspace with one shared module
 definition and rc import. Lesson packages have separate public targets and small
 local sources, but no dependency on another lesson's generated output.
 
@@ -39,22 +41,23 @@ map, commands, expected results, inspection steps and cleanup. Only necessary
 files belong in a lesson; fixtures for exhaustive negative testing stay in
 `tests/fixtures`.
 
-## Proposed Lessons
+## Lessons And Implementation Status
 
-The directory names below are proposals, not links to existing projects.
+Lessons 01-04 link to implemented projects. Remaining directory names describe
+planned work and are not links to runnable projects.
 
-| Order / proposed package | Main question | Public interfaces | Required observation |
-| --- | --- | --- | --- |
-| 01 `minimal-app` | How do I build and run a native program with Forge? | `eros_cc_binary`, native auto selection, Debug/Release | One real executable returns the expected result; unsupported host errors are understandable |
-| 02 `native-library` | How does one target consume another? | `eros_cc_library`, `deps`, public headers | Program uses a compiled library without consumer-side include/link workarounds |
-| 03 `cmake-library` | How does a CMake project become a native Bazel dependency? | `cmake_forge`, source filegroup, `install`, `exports` | Native consumer compiles, links and runs using only the exported dependency |
-| 04 `conan-locked` | How do I consume a locked compiled third-party dependency? | `cmake_conan_forge`, file recipe index, lock and profiles | Missing binary builds from locked source, a real dependency symbol runs, and the lock/user cache stays unchanged |
-| 05 `private-runtime` | Which files does a dynamically linked program need? | Shared-library forms, `data`, `eros_install_map`, runtime layout | Program finds a private library and unique resource from the collected layout without LD_LIBRARY_PATH |
-| 06 `debian-package` | How do I turn a target into a private deb? | `pkg_eros_tar`, `pkg_eros_deb`, architecture/version inputs | Control fields match ELF, files have the intended private paths, and temporary-root extraction runs natively |
-| 07 `release-symbols` | How do I debug optimized published code? | `separate_debug_info`, `eros_debug_info`, identity/source manifests | GDB resolves a real source breakpoint from the matching published binary and collected symbols |
-| 08 `sanitizer-errors` | How do I prove business and dependency code are instrumented? | ASan first, then UBSan/TSan/combination and no_sanitizer | Actual runtime reports originate in each intended translation unit; independent clean controls pass |
-| 09 `cross-build` | How do execution tools differ from the target ABI? | Explicit cross preset, host/build profiles, environment manifest | Correct target ELF/interpreter and actual compiler search paths are inspectable; absent target runtime stays unverified |
-| 10 `multiarch-package` | How does one invocation produce distinct configured payloads? | `pkg_eros_deb_multiarch`, architecture/preset branches | Configuration graph, ELF, package metadata and per-branch provenance agree; no relabel-only result |
+| Order / package | State | Main question | Public interfaces | Required observation |
+| --- | --- | --- | --- | --- |
+| [01 minimal-app](../examples/01-minimal-app/README.md) | Implemented | How do I build and run a native program with Forge? | `eros_cc_binary`, native auto selection, Debug/Release | One real executable returns the expected result |
+| [02 native-library](../examples/02-native-library/README.md) | Implemented | How does one target consume another? | `eros_cc_library`, `deps`, public headers | Program uses a compiled library without consumer-side include/link workarounds |
+| [03 cmake-library](../examples/03-cmake-library/README.md) | Implemented | How does a CMake project become a native Bazel dependency? | `cmake_forge`, source filegroup, `install`, `exports` | Native consumer compiles, links and runs using only the exported dependency |
+| [04 conan-locked](../examples/04-conan-locked/README.md) | Implemented | How do I consume a locked compiled third-party dependency? | `cmake_conan_forge`, file recipe index, lock and profiles | Locked source builds, a real dependency symbol runs, and source/lock/cache audits pass |
+| 05 `private-runtime` | Planned | Which files does a dynamically linked program need? | Shared-library forms, `data`, `eros_install_map`, runtime layout | Private library/resource resolve without LD_LIBRARY_PATH |
+| 06 `debian-package` | Planned | How do I turn a target into a private deb? | `pkg_eros_tar`, `pkg_eros_deb`, architecture/version inputs | Metadata matches ELF; private layout works after native extraction |
+| 07 `release-symbols` | Planned | How do I debug optimized published code? | `separate_debug_info`, `eros_debug_info`, identity/source manifests | GDB resolves a real source breakpoint using matching symbols |
+| 08 `sanitizer-errors` | Planned | How do I prove business and dependency code are instrumented? | ASan, UBSan/TSan/combination and no_sanitizer | Real reports and independent clean controls |
+| 09 `cross-build` | Planned | How do execution tools differ from the target ABI? | Cross preset, host/build profiles, environment manifest | Target ELF and actual compiler paths inspected; absent runtime stays unverified |
+| 10 `multiarch-package` | Planned | How does one invocation produce distinct configured payloads? | `pkg_eros_deb_multiarch`, architecture/preset branches | Configurations, ELF, metadata and provenance agree |
 
 ## Lesson Boundaries
 
@@ -117,11 +120,11 @@ a separate gate.
 
 ## Delivery Sequence
 
-| Batch | Lessons | Entry gate |
-| --- | --- | --- |
-| A: first success and dependencies | 01-04 | Controlled native build environment and pinned local dependency inputs |
-| B: useful delivery and diagnostics | 05-08 | Batch A concepts, native runtime, optional GDB/sanitizer prerequisites |
-| C: platform-specific delivery | 09-10 | Compatible cross tools and explicit SDK/target validation prerequisites |
+| Batch | Lessons | State | Entry gate |
+| --- | --- | --- | --- |
+| A: first success and dependencies | 01-04 | Implemented | Controlled native build environment and pinned local dependency inputs |
+| B: useful delivery and diagnostics | 05-08 | Planned | Batch A concepts, native runtime, optional GDB/sanitizer prerequisites |
+| C: platform-specific delivery | 09-10 | Planned | Compatible cross tools and explicit SDK/target validation prerequisites |
 
 Do not bundle all batches into the first implementation. Complete and validate
 one vertical lesson before expanding to the next concept.
@@ -142,5 +145,5 @@ Cache-service provisioning, binary-revision adversarial tests, device scheduling
 cross-target cores and exhaustive failure injection belong to maintainer guides
 and the [acceptance suite](test-design.md), not the beginner first-run path.
 
-No example implementation is authorized by this planning document alone; the
-project/source work remains a separate implementation step.
+Implementing the remaining batches is a separate scoped step. Keep their
+environment-dependent acceptance distinct from Batch A's native verification.

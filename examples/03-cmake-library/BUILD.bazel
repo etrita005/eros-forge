@@ -1,0 +1,26 @@
+load("@eros_forge//bazel:cmake_forge.bzl", "cmake_forge")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
+filegroup(
+    name = "sources",
+    srcs = ["CMakeLists.txt", "include/cmake_math/answer.h", "src/answer.cc"],
+)
+
+cmake_forge(
+    name = "answer",
+    lib_source = ":sources",
+    out_static_libs = ["libanswer.a"],
+    exports = {
+        "headers": ["include/cmake_math/answer.h"],
+        "includes": ["include"],
+        "libraries": [
+            {"name": "answer", "static": "lib/libanswer.a", "pic_static": "lib/libanswer.a"},
+        ],
+    },
+)
+
+cc_binary(
+    name = "app",
+    srcs = ["app/main.cc"],
+    deps = [":answer"],
+)

@@ -1,0 +1,5 @@
+filegroup(
+    name = "recipe_index",
+    srcs = glob(["conan-index/recipes/**"]),
+    visibility = ["//visibility:public"],
+)

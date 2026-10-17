@@ -1,0 +1,6 @@
+module(name = "forge_examples", version = "0.1.0")
+
+bazel_dep(name = "eros_forge", version = "0.1.0")
+bazel_dep(name = "rules_cc", version = "0.2.14")
+
+local_path_override(module_name = "eros_forge", path = "..")

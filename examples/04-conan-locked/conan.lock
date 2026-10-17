@@ -1,0 +1,9 @@
+{
+    "version": "0.5",
+    "requires": [
+        "tiny_math/1.0#7028b4eb549c0282fad37ada19d14638%1792215813.0877197"
+    ],
+    "build_requires": [],
+    "python_requires": [],
+    "config_requires": []
+}

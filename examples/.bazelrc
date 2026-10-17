@@ -1,0 +1,6 @@
+startup --host_jvm_args=-Xmx1024m
+
+import %workspace%/../bazel/bazelrc
+
+build --jobs=2
+build --define=forge_jobs=2

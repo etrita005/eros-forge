@@ -41,9 +41,10 @@ bazel --bazelrc=bazel/bazelrc build //bazel/toolchain:validate_environment
 bazel --bazelrc=bazel/bazelrc run --config=debug //tests/fixtures/basic:native
 ```
 
-The fixture command checks the installed build environment; the teaching
-projects described in the [beginner example plan](documents/examples-plan.md)
-are planning material, not implemented example directories.
+The fixture command checks the installed build environment. Start learning with
+the [beginner examples](examples/README.md): lessons 01-04 cover native programs,
+libraries, CMake and a locked Conan dependency in one workspace. The
+[example roadmap](documents/examples-plan.md) identifies the remaining batches.
 
 ## Platforms And ABI
 

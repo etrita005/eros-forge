@@ -1,0 +1,6 @@
+load("@eros_forge//bazel:runtime.bzl", "eros_cc_binary")
+
+eros_cc_binary(
+    name = "app",
+    srcs = ["main.cc"],
+)
