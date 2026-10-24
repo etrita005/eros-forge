@@ -15,6 +15,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 import time
 import traceback
 from typing import Callable
@@ -285,6 +286,9 @@ def capture_provenance(evidence: Path, preset: str, jobs: int, output_base: Path
         "locks": {name: sha for name, sha in entries.items() if name.endswith(".lock")},
         "bazel_output_base": str(output_base),
     }
+    if os.environ.get("EROS_FORGE_IMAGE_ID"):
+        provenance["local_image_id_claim"] = os.environ["EROS_FORGE_IMAGE_ID"]
+        provenance["local_image_environment_sha256_claim"] = os.environ.get("EROS_FORGE_ENVIRONMENT_SHA256", "")
     debugger = shutil.which(gdb)
     provenance["debugger"] = {"command": gdb, "available": debugger is not None}
     if debugger:
@@ -295,6 +299,8 @@ def capture_provenance(evidence: Path, preset: str, jobs: int, output_base: Path
             "exit_code": version.returncode,
         })
     try:
+        if provenance.get("local_image_id_claim"):
+            require(provenance["local_image_environment_sha256_claim"], "Local image baseline is missing")
         location = context.run(context.startup + ["info", "execution_root"])
         roots = [Path(line.strip()) for line in location.stdout.splitlines() if line.startswith("/")]
         require(roots, "Bazel did not report an execution root")
@@ -312,6 +318,9 @@ def capture_provenance(evidence: Path, preset: str, jobs: int, output_base: Path
             "sdk": environment.get("sdk"),
             "supported_presets": environment.get("supported_presets"),
         })
+        if provenance.get("local_image_id_claim"):
+            require(provenance["local_image_environment_sha256_claim"] == environment["environment_sha256"],
+                    "Local image baseline differs from Bazel's captured tool environment")
     except Exception as error:
         provenance["environment_capture_error"] = f"{type(error).__name__}: {error}"
     return provenance
@@ -382,6 +391,17 @@ def main(argv: list[str] | None = None) -> int:
     provenance = capture_provenance(evidence, args.preset, args.jobs, output_base, args.gdb)
     results = []
     report = args.report or evidence / "report.md"
+
+    if provenance.get("local_image_id_claim") and provenance.get("environment_capture_error"):
+        data = report_data([], args.preset, source_revision, args.all, len(cases))
+        data.update(input_provenance=provenance, active_scope=None, provenance_status="FAIL",
+                    scope_notice="FAIL: Local image environment provenance could not be verified.")
+        save_report(report, data)
+        cleanup = Context(evidence / "cleanup", args.preset, args.jobs, output_base=output_base)
+        cleanup.run(cleanup.startup + ["shutdown"], expected=None, timeout=30)
+        print("Forge environment provenance failed: " + provenance["environment_capture_error"], file=sys.stderr)
+        print(f"Report: {report}\nEvidence: {evidence}")
+        return 1
 
     def checkpoint(active_scope=None):
         data = report_data(results, args.preset, source_revision, args.all, len(cases))

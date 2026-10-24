@@ -1,0 +1,6 @@
+*
+!docker/
+!docker/ubuntu.sources
+!docker/ubuntu-arm64.sources
+!docker/requirements.lock
+!docker/requirements-arm64.lock

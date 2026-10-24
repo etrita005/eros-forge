@@ -35,15 +35,15 @@ If already inside `examples/04-conan-locked`, use `cd ..` instead. Build the
 consumer, CMake library and locked Conan dependency without running the program:
 
 ```bash
-bazel build --config=debug //04-conan-locked:app
-bazel build --config=release //04-conan-locked:app
+../forge-bazel build --config=debug //04-conan-locked:app
+../forge-bazel build --config=release //04-conan-locked:app
 ```
 
 To build only the exported library and its locked dependency:
 
 ```bash
-bazel build --config=debug //04-conan-locked:answer
-bazel build --config=release //04-conan-locked:answer
+../forge-bazel build --config=debug //04-conan-locked:answer
+../forge-bazel build --config=release //04-conan-locked:answer
 ```
 
 The supplied `conan.lock` and local recipe index are sufficient for a normal
@@ -61,8 +61,8 @@ dependency outputs. Reuse the same output base when switching configurations.
 From the same `forge/examples` directory:
 
 ```bash
-bazel run --config=debug //04-conan-locked:app
-bazel run --config=release //04-conan-locked:app
+../forge-bazel run --config=debug //04-conan-locked:app
+../forge-bazel run --config=release //04-conan-locked:app
 ```
 
 Both commands must print `result=41` and exit zero. The index supplies source,
@@ -73,13 +73,14 @@ Normal builds do not change the lock or user Conan cache.
 ## Inspect The Snapshot
 
 ```bash
-bazel cquery --config=debug //04-conan-locked:answer_conan --output=files
+../forge-bazel cquery --config=debug //04-conan-locked:answer_conan --output=files
 ```
 
 The snapshot and manifest are declared outputs containing actual files, locked
 revisions, package identity and hashes. The manifest records that the private
 producer home was removed. Headers/libraries do not point into `~/.conan2`.
 The [Conan guide](../../documents/cmake-conan-forge.md) describes these contracts.
+Inside `../forge-shell`, replace `../forge-bazel` with `bazel`.
 
 ## Explicit Maintenance
 
@@ -87,7 +88,7 @@ Do not update locks as part of the first build. When intentionally changing the
 supplied recipe or requirement, review the source digest and then run:
 
 ```bash
-bazel run --config=release @eros_forge//bazel/tools:conan_lock_update -- 04-conan-locked --file-remote _support/conan-index
+../forge-bazel run --config=release @eros_forge//bazel/tools:conan_lock_update -- 04-conan-locked --file-remote _support/conan-index
 ```
 
 Review the lock and export changes and include them with the source update.

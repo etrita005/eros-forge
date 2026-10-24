@@ -9,6 +9,8 @@ rules and are not a beginner tutorial collection.
 Run from the Forge repository root:
 
 ```bash
+./forge-shell
+# The following commands run inside the container:
 python3 tests/test_runner.py --list
 python3 tests/test_runner.py --tc TC-SAN-01 --report /tmp/kilo/forge-asan.md
 python3 tests/test_runner.py --all --strict --report /tmp/kilo/forge-release.json
@@ -17,6 +19,16 @@ python3 bazel/toolchain/environment_test.py
 python3 bazel/packaging/driver_test.py
 python3 bazel/toolchain/generate_files.py --check
 ```
+
+On the host, run the launcher unit tests with
+`python3 -m unittest discover -s tests -p test_container_entry.py`.
+Set `FORGE_TEST_DOCKER=1` for its isolated Docker integration case; that case
+creates and removes only its uniquely named test container. The existing
+runner's new environment/entry/CI design cases are not all registered yet;
+do not treat `--all --strict` as an available full release gate.
+The runner records the launcher-provided local image ID as a caller claim;
+if an image claim is present but the captured Bazel environment is missing or
+does not match, it writes a failed provenance report and exits nonzero.
 
 `--tc` is repeatable. A base ID selects all its scopes; a complete ID such as
 `TC-ENV-01/local` selects only that scope. Unknown IDs and empty selections fail.

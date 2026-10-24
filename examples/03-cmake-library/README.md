@@ -36,15 +36,15 @@ If already inside `examples/03-cmake-library`, use `cd ..` instead. Build the
 CMake library and native consumer without executing the program:
 
 ```bash
-bazel build --config=debug //03-cmake-library:app
-bazel build --config=release //03-cmake-library:app
+../forge-bazel build --config=debug //03-cmake-library:app
+../forge-bazel build --config=release //03-cmake-library:app
 ```
 
 To build and export only the CMake library:
 
 ```bash
-bazel build --config=debug //03-cmake-library:answer
-bazel build --config=release //03-cmake-library:answer
+../forge-bazel build --config=debug //03-cmake-library:answer
+../forge-bazel build --config=release //03-cmake-library:answer
 ```
 
 Bazel invokes CMake, compiles the PIC archive, installs its header/library, and
@@ -59,8 +59,8 @@ files. Do not clean between configurations.
 From the same `forge/examples` directory:
 
 ```bash
-bazel run --config=debug //03-cmake-library:app
-bazel run --config=release //03-cmake-library:app
+../forge-bazel run --config=debug //03-cmake-library:app
+../forge-bazel run --config=release //03-cmake-library:app
 ```
 
 Both commands must print `result=41` and exit zero. CMake produces a library,
@@ -69,14 +69,15 @@ not a dummy executable; `:app` is the actual runnable consumer.
 ## Inspect And Clean Up
 
 ```bash
-bazel cquery --config=debug //03-cmake-library:answer --output=files
-bazel aquery 'mnemonic("CppLink", //03-cmake-library:app)' --config=debug
+../forge-bazel cquery --config=debug //03-cmake-library:answer --output=files
+../forge-bazel aquery 'mnemonic("CppLink", //03-cmake-library:app)' --config=debug
 ```
 
 Inspect the declared install/export outputs and the consumer link action. A
 missing installed header or archive is a build error. The
 [CMake guide](../../documents/cmake-forge.md) explains toolchain overlays,
 additional inputs and cross-probe boundaries.
+Inside `../forge-shell`, replace `../forge-bazel` with `bazel`.
 
 Reuse the shared workspace and output base. No manual CMake directory, system
 installation, or user Conan cache cleanup is part of this lesson.

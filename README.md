@@ -10,10 +10,99 @@ verification boundaries. Execution results belong in per-run reports.
 
 ## Environment And Setup
 
-Use a supported Linux x86_64 or ARM64 environment with the prescribed GCC,
-binutils, CMake, Make, Python and Conan installation. The generated environment
-manifest identifies their actual files and support libraries; environment
-validation checks content and version policy.
+The currently built and locked local Docker environment is **Linux/amd64 only**.
+`Dockerfile.amd64` is for native Linux x86_64 build hosts; `Dockerfile.arm64`
+is an unverified recipe for native Linux ARM64 build hosts (including an ARM64
+Linux VM in OrbStack). On a Linux x86_64 host, install Python 3 and Docker,
+ensure the Docker daemon is accessible, and check out the Forge source. The
+host does not need Bazel, GCC, CMake, Conan or a target SDK. From the Forge
+root, build the local amd64 image if it is not already present:
+
+```bash
+docker build --platform linux/amd64 -f Dockerfile.amd64 -t eros-forge-builder:local .
+```
+
+If downloads require the host's `127.0.0.1:7890` proxy, use host networking
+for the build and supply proxy build arguments as needed instead:
+
+```bash
+docker build --platform linux/amd64 -f Dockerfile.amd64 --network=host \
+  --build-arg HTTP_PROXY=http://127.0.0.1:7890 \
+  --build-arg HTTPS_PROXY=http://127.0.0.1:7890 \
+  --build-arg http_proxy=http://127.0.0.1:7890 \
+  --build-arg https_proxy=http://127.0.0.1:7890 \
+  -t eros-forge-builder:local .
+```
+
+These build arguments affect commands inside the Dockerfile. Pulling the base
+image is done by the Docker daemon, which needs its own proxy configuration
+if Docker Hub is inaccessible; neither configuration is baked into the image.
+
+The amd64 Dockerfile uses the Tsinghua Ubuntu APT mirror and verifies the downloaded
+Bazel binary against its fixed SHA256. Availability of that upstream download
+and the APT/Python package sources is still required for a rebuild; this image
+is not a reproducibly published registry artifact. The reviewed local image is
+`sha256:81230a0b49d2e588491e1652164ad4c4aba853605366c306e73492a2883b1e30`.
+Check the newly built ID and `linux/amd64` architecture:
+
+```bash
+docker image inspect eros-forge-builder:local --format '{{.Id}} {{.Os}}/{{.Architecture}}'
+```
+
+`docker/image.lock.json` pins the **local Docker image ID**, environment digest
+and missing SDK identity; the `eros-forge-builder:local` tag alone does not
+authorize an upgrade. A different image ID makes both launchers fail closed.
+For an intentional rebuild, inspect and review the new image ID and captured
+environment/SDK identities, update the lock together, then rerun local checks.
+The capture and upgrade procedure is in the
+[technical design](documents/technical-design.md#local-image-baseline).
+
+On a native Linux ARM64 build host, the separate candidate recipe can be built:
+
+```bash
+docker build --platform linux/arm64 -f Dockerfile.arm64 \
+  -t eros-forge-builder:arm64-candidate .
+```
+
+It uses the Ubuntu `ubuntu-ports` mirror and its own hashed Python dependency lock.
+**No ARM64 image has been built or validated here.** The current image lock
+and host launchers accept amd64 only; an ARM64 build would first need toolchain
+and Forge tests on that host, followed by its own reviewed lock and launcher
+platform support. On OrbStack, verify proxy reachability from the Linux VM:
+`127.0.0.1` in the VM is not assumed to be macOS's loopback address.
+
+Use the executable entry points from the Forge root:
+
+```bash
+./forge-bazel --bazelrc=bazel/bazelrc build //bazel/toolchain:validate_environment
+./forge-bazel --bazelrc=bazel/bazelrc run --config=debug //tests/fixtures/basic:native
+./forge-shell
+# Inside the shell, in the Forge root:
+bazel --bazelrc=bazel/bazelrc info output_base
+```
+
+`forge-bazel` passes Bazel arguments through, while `forge-shell` enters the
+same persistent workspace container; both use the caller's working directory.
+In the shell use `bazel` directly. From `examples/`, use `../forge-bazel` on
+the host or `bazel` in the shell: its `.bazelrc` already imports Forge's rc.
+The persistent container runs as the caller's UID/GID and uses host networking,
+including access to a host loopback proxy when configured. The launchers check
+the locked image and tool/SDK identity before use; they do not pull or publish
+an image, nor fall back to bare-metal building. See
+[the examples](examples/README.md) for eight verified Debug/Release native runs;
+these do not replace target execution or cross-machine acceptance.
+
+The local entry permits one active container instance per source workspace:
+another `FORGE_INSTANCE` for the same checkout fails rather than overwrite
+`bazel-bin` links. Use separate checkouts for parallel work. Different instance
+state and the target SDK/CPU runtime are not interchangeable.
+
+The generated environment manifest identifies the actual tool files and
+support libraries; validation checks their content and version policy. The
+ARM64 native preset remains a design target, not a locally supplied ARM64
+image. The current x86_64 container has cross tools, but lacks a matching
+target SDK and target execution environment; cross builds/ELF checks cannot
+establish target ABI or deployment acceptance.
 
 The module is `eros_forge` version `0.1.0`. Dependencies are `rules_cc 0.2.14`,
 `rules_pkg 1.0.1`, `platforms 1.0.0`, and `rules_foreign_cc 0.15.1`.
@@ -33,12 +122,13 @@ relative path to the checkout layout:
 import %workspace%/../forge/bazel/bazelrc
 ```
 
-From the Forge repository root, select the rc explicitly:
+From the Forge repository root, select the rc explicitly. In the container
+shell use `bazel` instead of `./forge-bazel`:
 
 ```bash
 python3 bazel/toolchain/generate_files.py --check
-bazel --bazelrc=bazel/bazelrc build //bazel/toolchain:validate_environment
-bazel --bazelrc=bazel/bazelrc run --config=debug //tests/fixtures/basic:native
+./forge-bazel --bazelrc=bazel/bazelrc build //bazel/toolchain:validate_environment
+./forge-bazel --bazelrc=bazel/bazelrc run --config=debug //tests/fixtures/basic:native
 ```
 
 The fixture command checks the installed build environment. Start learning with

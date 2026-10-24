@@ -1,9 +1,9 @@
 # 01: Build And Run A Native Program
 
 Goal: use a public Forge rule to build a real executable and run it natively.
-Use the controlled Linux x86_64 or ARM64 environment described in the
-[workspace guide](../README.md). No cross SDK, remote cache or Conan server is
-needed.
+Use the local Linux/amd64 container described in the
+[workspace guide](../README.md). No target SDK, remote cache or Conan server
+is needed.
 
 ## Files And Target
 
@@ -29,8 +29,8 @@ If already inside `examples/01-minimal-app`, use `cd ..` instead. Build the
 program without executing it:
 
 ```bash
-bazel build --config=debug //01-minimal-app:app
-bazel build --config=release //01-minimal-app:app
+../forge-bazel build --config=debug //01-minimal-app:app
+../forge-bazel build --config=release //01-minimal-app:app
 ```
 
 Success means Bazel exits zero and reports `Build completed successfully`.
@@ -43,8 +43,8 @@ clean between Debug and Release.
 From the same `forge/examples` directory:
 
 ```bash
-bazel run --config=debug //01-minimal-app:app
-bazel run --config=release //01-minimal-app:app
+../forge-bazel run --config=debug //01-minimal-app:app
+../forge-bazel run --config=release //01-minimal-app:app
 ```
 
 Both commands must print `result=41` and exit zero. Debug and Release select
@@ -53,11 +53,13 @@ different build modes; neither implicitly enables a sanitizer.
 ## Inspect And Clean Up
 
 ```bash
-bazel cquery --config=debug //01-minimal-app:app --output=files
+../forge-bazel cquery --config=debug //01-minimal-app:app --output=files
 ```
 
-The Forge wrapper forwards a real executable and runtime layout. The query lists
+The Forge rules forward a real executable and runtime layout. The query lists
 declared files; `bazel run` chooses the executable, not a guessed basename.
+These host commands also work with `bazel` instead of `../forge-bazel` inside
+`../forge-shell`.
 
 No source files or system installation are modified. Reuse this workspace for
 the next lesson. Do not clean between mode switches. When all lessons are

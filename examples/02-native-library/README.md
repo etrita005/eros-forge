@@ -32,15 +32,15 @@ If already inside `examples/02-native-library`, use `cd ..` instead. Build the
 consumer and its library dependency without executing the program:
 
 ```bash
-bazel build --config=debug //02-native-library:app
-bazel build --config=release //02-native-library:app
+../forge-bazel build --config=debug //02-native-library:app
+../forge-bazel build --config=release //02-native-library:app
 ```
 
 To build only the library:
 
 ```bash
-bazel build --config=debug //02-native-library:answer
-bazel build --config=release //02-native-library:answer
+../forge-bazel build --config=debug //02-native-library:answer
+../forge-bazel build --config=release //02-native-library:answer
 ```
 
 Each command must exit zero with `Build completed successfully`. Building `:app`
@@ -54,8 +54,8 @@ Do not clean between configurations.
 From the same `forge/examples` directory:
 
 ```bash
-bazel run --config=debug //02-native-library:app
-bazel run --config=release //02-native-library:app
+../forge-bazel run --config=debug //02-native-library:app
+../forge-bazel run --config=release //02-native-library:app
 ```
 
 Both commands must print `result=41` and exit zero. The value comes from the
@@ -64,13 +64,14 @@ library's compiled function, not a header-only implementation.
 ## Inspect And Clean Up
 
 ```bash
-bazel cquery --config=debug //02-native-library:answer --output=files
-bazel query 'deps(//02-native-library:app, 1)'
-bazel aquery 'mnemonic("CppLink", //02-native-library:app)' --config=debug
+../forge-bazel cquery --config=debug //02-native-library:answer --output=files
+../forge-bazel query 'deps(//02-native-library:app, 1)'
+../forge-bazel aquery 'mnemonic("CppLink", //02-native-library:app)' --config=debug
 ```
 
 Inspect the explicit library dependency and the native link action. Header and
 archive paths are provider outputs, not manual consumer flags.
+Inside `../forge-shell`, replace `../forge-bazel` with `bazel`.
 
 Do not edit or clear the user Conan cache. Reuse this workspace/output base for
 the remaining lessons; [workspace cleanup](../README.md#resources-and-cleanup)

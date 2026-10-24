@@ -1,0 +1,31 @@
+FROM ubuntu@sha256:18b33ff3829707f31ada654a963b9ee35f2e6f0241b964bd17a22a9b330cb63d
+
+COPY docker/ubuntu-arm64.sources /etc/apt/sources.list.d/ubuntu.sources
+
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        binutils binutils-aarch64-linux-gnu ca-certificates curl dpkg-dev file \
+        g++-13 g++-13-aarch64-linux-gnu gcc-13 gcc-13-aarch64-linux-gnu \
+        gdb git libc6-dev libc6-dev-arm64-cross \
+        libstdc++-13-dev libstdc++-13-dev-arm64-cross \
+        m4 make patch python3 python3-pip python3-setuptools python3-wheel \
+        tar unzip xz-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY docker/requirements-arm64.lock /tmp/forge-requirements.lock
+RUN python3 -m pip install --break-system-packages --no-build-isolation \
+        --require-hashes --no-cache-dir -r /tmp/forge-requirements.lock \
+    && rm /tmp/forge-requirements.lock
+
+RUN (curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
+        https://releases.bazel.build/9.0.0/release/bazel-9.0.0-linux-arm64 \
+        -o /usr/local/bin/bazel \
+    || curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
+        https://github.com/bazelbuild/bazel/releases/download/9.0.0/bazel-9.0.0-linux-arm64 \
+        -o /usr/local/bin/bazel) \
+    && printf '%s  %s\n' \
+        cab23c59d3d39c5e5382f12cd116b47445afdff9813516c18ae3ee8836b3037f \
+        /usr/local/bin/bazel | sha256sum -c - \
+    && chmod 0755 /usr/local/bin/bazel
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1

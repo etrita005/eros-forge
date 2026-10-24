@@ -138,9 +138,11 @@ def unsupported_environment(context: Context):
 
 
 def conan_scenario(context: Context, tc: str):
+    startup = [f"--bazel-startup={option}" for option in context.startup[1:]] if context.output_base else []
     result = context.run([
         sys.executable, "tests/fixtures/conan/verify.py", "--tc", tc,
         "--evidence", context.evidence / "conan", "--preset", context.preset,
+        *startup,
     ], expected=None, timeout=1200)
     if result.returncode == 77:
         raise Blocked(result.stdout.strip())
@@ -560,7 +562,8 @@ def package_versions(context: Context):
 
 
 def package_architecture(context: Context):
-    context.negative(RUNTIME + "bad_architecture", "architecture|machine|ELF|mismatch")
+    context.negative(RUNTIME + "bad_architecture", "architecture|machine|ELF|mismatch",
+                     preset=context.cross_preset)
     context.negative(CHECKS + "unknown_architecture", "architecture|CPU|no.match|constraint|preset",
                      flags=["--platforms=//tests/fixtures/checks:unknown_cpu"])
     _, metadata = extract_deb(context, RUNTIME + "runtime_deb", context.evidence / "root")

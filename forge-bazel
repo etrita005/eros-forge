@@ -1,0 +1,10 @@
+#!/usr/bin/env python3
+"""Run Bazel in the reviewed, persistent Forge build environment."""
+
+import sys
+
+from forge_container import main
+
+
+if __name__ == "__main__":
+    raise SystemExit(main("bazel", sys.argv[1:]))

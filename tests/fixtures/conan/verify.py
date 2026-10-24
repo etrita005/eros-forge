@@ -25,7 +25,15 @@ class Checks:
         self.evidence = Path(args.evidence).resolve()
         self.evidence.mkdir(parents=True, exist_ok=True)
         self.sequence = 0
-        self.bazel = ["bazel", "--bazelrc=bazel/bazelrc"]
+        startup = args.bazel_startup or ["--bazelrc=bazel/bazelrc", f"--output_base={self.evidence / 'bazel-output-base'}"]
+        bases = [option.split("=", 1)[1] for option in startup if option.startswith("--output_base=")]
+        if len(bases) != 1 or not Path(bases[0]).is_absolute():
+            raise ValueError("Bazel startup options must contain exactly one absolute --output_base")
+        self.output_base = Path(bases[0]).resolve()
+        self.bazel = ["bazel", *startup]
+        actual_base = Path(self.command(self.bazel + ["info", "output_base"]).stdout.strip()).resolve()
+        if actual_base != self.output_base:
+            raise AssertionError(f"Bazel output_base mismatch: expected {self.output_base}, got {actual_base}")
         execution_root = Path(self.command(self.bazel + ["info", "execution_root"]).stdout.strip())
         query = self.command(self.bazel + ["cquery", "@eros_host_tools//:env_manifest", "--output=files"])
         paths = [(execution_root.parent.parent if line.startswith("external/") else execution_root) / line
@@ -323,6 +331,8 @@ if __name__ == "__main__":
     parser.add_argument("--tc", required=True)
     parser.add_argument("--evidence", required=True)
     parser.add_argument("--preset", default="linux_arm64")
+    parser.add_argument("--bazel-startup", action="append", default=[], metavar="OPTION",
+                        help="Bazel startup option (use --bazel-startup=--option=value; repeat for the runner's startup options)")
     parser.add_argument("--server-pythonpath", default="/tmp/kilo/forge-conan-server")
     parser.add_argument("--bootstrap-server", action="store_true")
     args = parser.parse_args()

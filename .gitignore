@@ -27,7 +27,7 @@ __pycache__/
 *.pyo
 .pytest_cache/
 
-# Repo-local tool state (isolation homes live in /tmp; these guard overrides).
+# Repo-local Conan state; container homes live outside the checkout in ~/.cache/eros-forge.
 .conan2/
 
 # Local acceptance evidence (reports are written outside the source tree).

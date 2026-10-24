@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "platform": "linux/amd64",
+  "image": "sha256:81230a0b49d2e588491e1652164ad4c4aba853605366c306e73492a2883b1e30",
+  "environment_sha256": "c5266612ed9cb4c94f39619e75d0c50d0b20f3fd3fdb8e2a9b4445020ada7f17",
+  "sdk_id": "missing:/opt/eros"
+}

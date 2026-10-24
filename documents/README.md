@@ -8,8 +8,8 @@ Forge 以 Bazel 管理构建与交付，支持原生 C++、CMake、Conan 依赖�
 | --- | --- | --- |
 | [根 README](../README.md) | 环境、接入、平台、构建选项和公共入口 | 所有使用者 |
 | [需求](requirements.md) | 技术决策、责任边界、FR/NFR 与发布要求 | 维护者、评审者 |
-| [技术设计](technical-design.md) | 配置流、工具选择、快照、provider、闭包和校验边界 | Forge 与包维护者 |
-| [验收设计](test-design.md) | TC 用例、环境、证据和需求追踪 | 测试与 CI 维护者 |
+| [技术设计](technical-design.md) | 本地镜像/入口、目标发布设计、状态/挂载、工具与 SDK、快照和闭包 | Forge 与包维护者 |
+| [验收设计](test-design.md) | 环境交付与入口用例、构建/运行验证、证据和需求追踪 | 测试与 CI 维护者 |
 | [CMake 指南](cmake-forge.md) | 输入、安装导出、flags、探测与 Foreign-CC 边界 | CMake 包维护者 |
 | [CMake/Conan 指南](cmake-conan-forge.md) | 锁更新、来源、profiles、快照和公开接口 | 第三方依赖维护者 |
 | [运行与打包指南](deb-packaging.md) | 原生包装、插件、私有依赖、版本、架构、符号和测试包 | 包与交付维护者 |
@@ -18,6 +18,10 @@ Forge 以 Bazel 管理构建与交付，支持原生 C++、CMake、Conan 依赖�
 | [示例路线](examples-plan.md) | 教学顺序、验收标准、已实现范围和后续批次 | 入门者、示例作者 |
 
 入门建议先读根 README，再按需要阅读一条构建路径的指南；实现与评审以需求、技术设计和验收设计相互核对。
+
+## 本地交付与未覆盖范围
+
+本机 Linux/amd64 镜像已按本地 ID 锁定，`./forge-bazel` 和 `./forge-shell` 已接入持久工作区容器；安装、构建和示例命令见[根 README](../README.md)及[示例](../examples/README.md)。当前锁定结果不是已发布、可从 registry 拉取的官方多架构镜像。技术设计第 3 节记录现行入口和发布目标，第 9-10 节列出验收边界；验收设计的新增环境/入口 TC 仍是待接入的目标，不是已通过的 CI 报告。ARM64 原生镜像、匹配目标 SDK、目标执行和跨机缓存验收尚未交付，不能把本机构建或 ELF 检查计为它们的 PASS。
 
 ## 文档约定
 

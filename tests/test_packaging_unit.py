@@ -33,19 +33,21 @@ class PackagingTests(unittest.TestCase):
             "extern int forge_unit_value(void);\n"
             "int main(void) { return forge_unit_value() == 7 ? 0 : 1; }\n"
         )
+        compiler = shutil.which("gcc-13") or shutil.which("gcc")
         subprocess.run([
-            "gcc", "-g", "-fPIC", "-shared", "-Wl,--build-id", "-Wl,-soname,libforge_unit.so.1",
+            compiler, "-g", "-fPIC", "-shared", "-Wl,--build-id", "-Wl,-soname,libforge_unit.so.1",
             "-Wl,-rpath,$ORIGIN", cls.root / "private.c", "-o", cls.lib / "libforge_unit.so.1.0",
         ], check=True, capture_output=True)
         (cls.lib / "libforge_unit.so.1").symlink_to("libforge_unit.so.1.0")
         (cls.lib / "libforge_unit.so").symlink_to("libforge_unit.so.1")
         subprocess.run([
-            "gcc", "-g", "-Wl,--build-id", cls.root / "main.c", f"-L{cls.lib}", "-lforge_unit",
+            compiler, "-g", "-Wl,--build-id", cls.root / "main.c", f"-L{cls.lib}", "-lforge_unit",
             "-Wl,-rpath,$ORIGIN/../lib", "-o", cls.bin / "app",
         ], check=True, capture_output=True)
         cls.debug = cls.root / "app.debug"
         subprocess.run(["objcopy", "--only-keep-debug", cls.bin / "app", cls.debug], check=True, capture_output=True)
         cls.machine = driver.inspect_elf(cls.bin / "app")["architecture"]
+        cls.preset = "linux_x86_64" if cls.machine == "amd64" else "linux_arm64"
         cls.environment = {"toolchains": {"native": {"runtime_sonames": ["libc.so.6"]}}}
 
     @classmethod
@@ -160,12 +162,12 @@ class PackagingTests(unittest.TestCase):
 
     def test_runtime_closure_is_relative_and_complete(self):
         entries = self.entries()
-        metadata = driver.validate_elf_closure(entries, self.environment)
+        metadata = driver.validate_elf_closure(entries, self.environment, self.preset)
         self.assertIn("bin/app", metadata)
         self.assertIn("libforge_unit.so.1", metadata["bin/app"]["needed"])
         missing = {name: entry for name, entry in entries.items() if not name.startswith("lib/")}
         with self.assertRaisesRegex(driver.PackagingError, "missing private runtime dependency"):
-            driver.validate_elf_closure(missing, self.environment)
+            driver.validate_elf_closure(missing, self.environment, self.preset)
 
     def test_no_implicit_host_runtime_boundary(self):
         with self.assertRaisesRegex(driver.PackagingError, "runtime SONAME boundary"):
