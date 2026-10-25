@@ -26,6 +26,15 @@ Set `FORGE_TEST_DOCKER=1` for its isolated Docker integration case; that case
 creates and removes only its uniquely named test container. The existing
 runner's new environment/entry/CI design cases are not all registered yet;
 do not treat `--all --strict` as an available full release gate.
+
+The unit discovery includes the Bash runtime-export CLI tests. A focused run is
+`python3 -B -m unittest discover -s tests -p test_runtime_export_unit.py -v`.
+These tests compile small real AArch64 shared-library fixtures with the controlled
+cross GCC, invoke `bash bazel/toolchain/export_runtime.sh`, and inspect its
+archive, hashes, dependency closure and failure behavior without running target
+programs. Compiler-query fixtures provide missing/wrong inputs; no installed
+toolchain or SDK is modified.
+
 The runner records the launcher-provided local image ID as a caller claim;
 if an image claim is present but the captured Bazel environment is missing or
 does not match, it writes a failed provenance report and exits nonzero.

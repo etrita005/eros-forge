@@ -191,6 +191,10 @@ print(manifest["environment_sha256"], manifest["sdk"]["id"])'
 
 容器化只固化现有工具布局，不由入口隐式注入 `--sysroot`、替换 glibc 或放宽校验。建立完整目标 SDK 属于单独的工具链契约变更。当前整个 `/opt/eros` 参与 SDK 身份采集，不作为可变的包安装测试目录；安装/卸载验收应使用独立目标环境。没有 SDK 的镜像须明确记录缺失状态，不能用空目录或加载器路径冒充完整 SDK。
 
+环境维护者可在容器内显式运行 `bash bazel/toolchain/export_runtime.sh --output PATH.tar.gz`，从已安装的 `aarch64-linux-gnu-gcc-13` 导出基础运行库；`--compiler` 可指定相同 GCC 13/AArch64 Linux 契约的驱动。脚本通过编译器查询定位运行库，并递归补齐 `DT_NEEDED`，不从宿主目录兜底、不运行目标程序。缺少必需库、架构/SONAME 错误或同名冲突时失败，不发布半成品或覆盖已有输出。
+
+归档采用 `opt/eros/lib/` 布局，将 SONAME/查询别名转换为指向包内实际文件的相对链接；`opt/eros/TOOLCHAIN` 与 `SHA256SUMS` 保存工具身份、来源、文件摘要和链接关系。tar/gzip 元数据归一化。该工具不安装 SDK、不改变环境锁或应用打包边界；它不提供头文件、开发链接输入、动态加载的 gconv/NSS 模块和目标系统配置，也不改写库的 RUNPATH 或配置目标加载器搜索路径。完整 SDK、间接依赖解析及目标 ABI/运行验收仍须单独确认。
+
 ## 4 Conan 锁与快照
 
 `cmake_conan_forge` 的普通构建必须提供 `lockfile`。`conan_install` 接收配方、锁、附属输入、host/build profiles，以及声明的来源配置或缓存归档。

@@ -160,6 +160,50 @@ unverified. A loader path does not prove glibc ABI agreement. Production needs
 matching target headers, libraries, loader and runtime, plus target execution
 evidence. See [toolchain design](documents/technical-design.md#toolchains).
 
+## Export The Cross Runtime
+
+Inside the controlled Linux build container, explicitly export the installed
+AArch64 GCC 13 runtime without installing anything or changing ordinary builds:
+
+```bash
+bash bazel/toolchain/export_runtime.sh \
+  --output /tmp/kilo/eros-runtime-arm64.tar.gz
+```
+
+The default compiler is `aarch64-linux-gnu-gcc-13`; `--compiler /path/to/gcc`
+selects another installed driver with the same GCC-major and target contract.
+The tool requires Bash 4+, GNU coreutils/tar/gzip, and `aarch64-linux-gnu-readelf`.
+It does not require Python. The output directory must exist, and existing output
+files or symlinks are never replaced.
+
+The archive contains `opt/eros/lib/` with libc, libm, libstdc++, libgcc_s and the
+AArch64 loader, available compatibility/atomic/resolver/sanitizer runtimes, and
+their transitive `DT_NEEDED` libraries. Discovery uses the selected compiler's
+`-print-file-name` only, with no host-library fallback or target execution.
+Missing core libraries or dependencies, wrong ELF architecture/SONAMEs, and
+filename collisions fail before publishing the archive. SONAME and query aliases
+are rebased to relative links to their real payloads inside `lib/`.
+
+`opt/eros/TOOLCHAIN` records compiler/binutils identities, runtime source paths,
+hashes, relative links and unavailable optional queries. `opt/eros/SHA256SUMS`
+checks the toolchain record and all library names. Archive order, ownership,
+timestamps and gzip headers are normalized for identical inputs. Review in a
+new staging directory, not in the build container's `/opt/eros`:
+
+```bash
+review_dir=$(mktemp -d /tmp/kilo/eros-runtime-review.XXXXXX)
+tar -xzf /tmp/kilo/eros-runtime-arm64.tar.gz --directory="$review_dir"
+(cd "$review_dir/opt/eros" && sha256sum --check SHA256SUMS)
+```
+
+This is a foundation runtime payload, not a complete SDK/sysroot: it does not
+include target headers, development archives, locales, gconv/NSS modules loaded
+dynamically, or deployment configuration. It does not rewrite library RUNPATHs
+or configure the target loader's search paths. SDK maintainers must verify
+target ABI, indirect library resolution and device execution separately; merely
+extracting this archive does not establish D02 or production readiness. Application
+private libraries remain the responsibility of the normal tar/deb packaging rules.
+
 ## Modes And Sanitizers
 
 `--config=debug` selects Debug without implicit sanitizers. `--config=release`
@@ -180,6 +224,7 @@ sanitizer flags into individual build paths.
 | CMake build | `cmake_forge` | [CMake](documents/cmake-forge.md) |
 | Locked Conan plus CMake | `cmake_conan_forge` | [CMake/Conan](documents/cmake-conan-forge.md) |
 | Private runtime tar/deb | `pkg_eros_tar`, `pkg_eros_deb` | [Packaging](documents/deb-packaging.md) |
+| Cross-toolchain foundation runtime archive | `bash bazel/toolchain/export_runtime.sh` | [Runtime export](#export-the-cross-runtime) |
 | Real split configurations | `pkg_eros_deb_multiarch` | [Packaging](documents/deb-packaging.md#multiarch-and-configurations) |
 | CI test closure | `eros_test_package` | [Packaging](documents/deb-packaging.md#debug-and-test-archives) |
 

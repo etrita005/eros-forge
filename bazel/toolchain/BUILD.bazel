@@ -28,4 +28,4 @@ genrule(
     tags = ["manual", "no-remote-exec"],
 )
 
-exports_files(["environment.py", "environment_spec.json", "generate_files.py", "toolchain_data.bzl"])
+exports_files(["environment.py", "environment_spec.json", "export_runtime.sh", "generate_files.py", "toolchain_data.bzl"])
