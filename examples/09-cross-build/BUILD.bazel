@@ -1,0 +1,25 @@
+load("@eros_forge//bazel:cmake_conan_forge.bzl", "cmake_conan_forge")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
+cmake_conan_forge(
+    name = "answer",
+    conanfile = "conanfile.txt",
+    lockfile = "conan.lock",
+    cmake_lists = "CMakeLists.txt",
+    srcs = ["include/cross_math/answer.h", "src/answer.cc"],
+    file_remote = ["//_support:recipe_index"],
+    exports = {
+        "headers": ["include/cross_math/answer.h"],
+        "includes": ["include"],
+        "libraries": [
+            {"name": "answer", "static": "lib/libanswer.a", "pic_static": "lib/libanswer.a"},
+            {"name": "tiny_math", "pic_static": "conan/tiny_math/lib/libtiny_math.a"},
+        ],
+    },
+)
+
+cc_binary(
+    name = "app",
+    srcs = ["app/main.cc"],
+    deps = [":answer"],
+)

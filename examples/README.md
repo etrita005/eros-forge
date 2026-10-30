@@ -58,13 +58,15 @@ Do not clean or create extra output bases between configurations.
 | 06b Two dependent debs | `//06b-deb-dependency/a:a_deb`, `//06b-deb-dependency/b:b_deb` | Implemented (native delivery extension) |
 | [07 Release symbols](07-release-symbols/README.md) | `//07-release-symbols:symbols` | Implemented |
 | [08 Sanitizer errors](08-sanitizer-errors/README.md) | `//08-sanitizer-errors:app` | Implemented |
+| [09 Cross build](09-cross-build/README.md) | `//09-cross-build:app` | Implemented (build-only) |
 
 Lessons 01-04 compute `result=41` through different build paths and must exit
 zero. Lessons 05-08 add private runtime delivery, Debian packaging, independent
 Release symbols and sanitizer controls; lesson 08 uses `forge-san=43` for its
 clean control. Lesson packages do not consume another lesson's generated output.
-The [example plan](../documents/examples-plan.md) defines the remaining Batch C;
-lessons 09-10 are not implemented here. The independent 06b example covers a
+Lesson 09 cross-builds for ARM64 and inspects artifacts without executing or
+deploying them. The [example plan](../documents/examples-plan.md) defines the
+remaining lesson 10. The independent 06b example covers a
 two-package deployment boundary; it is not a prerequisite for lesson 06.
 
 ## Two Debian Packages: B Depends On A
@@ -119,6 +121,26 @@ Lesson 05 extracts the private runtime, checks the SONAME chain and runs without
 architecture and extraction. Lesson 07 validates Release symbols and a GDB
 source breakpoint. Lesson 08 runs clean controls and real ASan/UBSan faults;
 TSan is reported as skipped when the host cannot initialize its runtime.
+
+## Verify Cross Builds Only
+
+Lesson 09 uses the existing ARM64 cross tools in the x86_64 container. From
+`forge/examples`:
+
+```bash
+../forge-bazel build --config=linux_x86_64_cross_arm64 --config=debug //09-cross-build:app
+../forge-bazel build --config=linux_x86_64_cross_arm64 --config=release //09-cross-build:app
+../forge-shell
+# Inside the shell, still in forge/examples:
+python3 09-cross-build/check.py
+```
+
+The checker validates ELF machine/interpreter/RUNPATH, both compiled static
+libraries, actual compiler selection, separate Conan build/host profiles and
+environment/lock identity. Its ignored report is
+`.forge-evidence/09-cross-build.json`. This is build/static-inspection evidence
+only: no deb installation, runtime provisioning, target execution or deployment
+is performed. Do not use `bazel run` for this lesson's cross-built program.
 
 ## Verify The Introductory Batch
 

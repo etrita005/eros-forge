@@ -3,8 +3,9 @@
 Status: Batch A (lessons 01-04) and Batch B (lessons 05-08) are implemented in
 the shared [examples workspace](../examples/README.md). Batch A's `check.py`
 builds and runs the native lessons in Debug/Release; each Batch B lesson has its
-own `check.py` for its runtime, packaging, symbol or sanitizer evidence. Batch C
-(lessons 09-10) remains planned and is not presented as implemented or validated.
+own `check.py` for its runtime, packaging, symbol or sanitizer evidence. In Batch
+C, lesson 09 is implemented for cross builds and static inspection only; it does
+not deploy or execute target artifacts. Lesson 10 remains planned.
 Public API references are in the [main guide](../README.md).
 An independent [two-deb extension](../examples/README.md#two-debian-packages-b-depends-on-a)
 shows a real first-party package dependency; it is not a prerequisite for the
@@ -47,8 +48,8 @@ files belong in a lesson; fixtures for exhaustive negative testing stay in
 
 ## Lessons And Implementation Status
 
-Lessons 01-08 link to implemented projects. Lessons 09-10 describe planned work
-and do not have runnable example directories yet.
+Lessons 01-09 link to implemented projects; lesson 09 is build-only. Lesson 10
+describes planned work and does not have an example directory yet.
 
 | Order / package | State | Main question | Public interfaces | Required observation |
 | --- | --- | --- | --- | --- |
@@ -61,7 +62,7 @@ and do not have runnable example directories yet.
 | 06b `deb-dependency` | Implemented extension | How does B build against A but load A from a separate deb? | `pkg_eros_deb(srcs, depends)`, versioned SONAME and relative RUNPATH | A owns its library, B owns its executable; absent/present/removed A changes B's behavior |
 | [07 release-symbols](../examples/07-release-symbols/README.md) | Implemented | How do I debug optimized published code? | `separate_debug_info`, `eros_debug_info`, identity/source manifests | GDB resolves a real source breakpoint using matching symbols |
 | [08 sanitizer-errors](../examples/08-sanitizer-errors/README.md) | Implemented | How do I prove business and dependency code are instrumented? | ASan, UBSan/TSan/combination and no_sanitizer | Real reports and independent clean controls |
-| 09 `cross-build` | Planned | How do execution tools differ from the target ABI? | Cross preset, host/build profiles, environment manifest | Target ELF and actual compiler paths inspected; absent runtime stays unverified |
+| [09 cross-build](../examples/09-cross-build/README.md) | Implemented (build-only) | How do execution tools differ from the target ABI? | Cross preset, host/build profiles, environment manifest | Debug/Release ARM64 ELF, libraries, compiler paths and profiles inspected; no target execution or deployment |
 | 10 `multiarch-package` | Planned | How does one invocation produce distinct configured payloads? | `pkg_eros_deb_multiarch`, architecture/preset branches | Configurations, ELF, metadata and provenance agree |
 
 ## Lesson Boundaries
@@ -117,9 +118,13 @@ than turning an unobserved race into a pass.
 
 ### Cross And Multiple Configurations
 
-Lessons 09-10 depend on the available execution toolchain and deployment
-environment. Explain native execution, target architecture and SDK identity
-before presenting commands.
+Lesson 09 needs the controlled x86_64 execution environment and ARM64 cross
+tools, not a target device or an installed deployment runtime. It cross-builds a
+native-rule consumer and a real CMake/Conan static dependency, checks both Conan
+profiles and the environment identity, and inspects the resulting ELF files.
+It does not execute the program or deploy anything, even if a runtime is present.
+Lesson 10 remains planned. Explain execution CPU, target architecture and SDK
+identity before presenting its commands.
 
 Cross GCC defaults, CMake search roots and deployment loader/RPATH are different
 concepts. Inspect the actual compiler/sysroot/headers/link directories. If the
@@ -138,7 +143,7 @@ a separate gate.
 | --- | --- | --- | --- |
 | A: first success and dependencies | 01-04 | Implemented | Controlled native build environment and pinned local dependency inputs |
 | B: useful delivery and diagnostics | 05-08 | Implemented | Batch A concepts, native runtime, GDB and sanitizer checks |
-| C: platform-specific delivery | 09-10 | Planned | Compatible cross tools and explicit SDK/target validation prerequisites |
+| C: platform-specific delivery | 09-10 | 09 implemented (build-only); 10 planned | Compatible cross tools for builds; target execution/deployment remain separate scopes |
 
 Do not bundle all batches into the first implementation. Complete and validate
 one vertical lesson before expanding to the next concept.
@@ -159,5 +164,5 @@ Cache-service provisioning, binary-revision adversarial tests, device scheduling
 cross-target cores and exhaustive failure injection belong to maintainer guides
 and the [acceptance suite](test-design.md), not the beginner first-run path.
 
-Implementing Batch C is a separate scoped step. Keep its environment-dependent
-acceptance distinct from the native verification used by Batches A and B.
+Implementing lesson 10 is a separate scoped step. Keep lesson 09's build-only
+evidence distinct from native runs and from target execution/deployment acceptance.

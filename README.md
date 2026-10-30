@@ -135,8 +135,9 @@ The fixture command checks the installed build environment. Start learning with
 the [beginner examples](examples/README.md): lessons 01-04 cover native programs,
 libraries, CMake and a locked Conan dependency; lessons 05-08 cover private
 runtime delivery, Debian packaging, Release symbols and sanitizer controls in
-the same workspace. The [example roadmap](documents/examples-plan.md) identifies
-the remaining Batch C.
+the same workspace. Lesson 09 adds x86_64-to-ARM64 cross builds and static
+inspection only, without running or deploying the target artifacts. The
+[example roadmap](documents/examples-plan.md) identifies the remaining lesson 10.
 
 ## Platforms And ABI
 
