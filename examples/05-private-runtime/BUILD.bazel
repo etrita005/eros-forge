@@ -1,0 +1,34 @@
+load("@eros_forge//bazel:deb.bzl", "pkg_eros_tar")
+load("@eros_forge//bazel:runtime.bzl", "eros_cc_binary", "eros_cc_library", "eros_install_map")
+
+package(default_visibility = ["//visibility:public"])
+
+eros_cc_library(
+    name = "answer",
+    srcs = ["src/answer.cc"],
+    hdrs = ["include/private_math/answer.h"],
+    strip_include_prefix = "include",
+    linkstatic = False,
+    install_name = "libforge_private_answer.so.1.0.0",
+    soname = "libforge_private_answer.so.1",
+    link_name = "libforge_private_answer.so",
+)
+
+eros_install_map(
+    name = "resource",
+    files = {"resource.txt": "share/private-runtime.txt"},
+)
+
+eros_cc_binary(
+    name = "app",
+    srcs = ["app/main.cc"],
+    deps = [":answer"],
+    data = [":resource"],
+    linkstatic = False,
+)
+
+pkg_eros_tar(
+    name = "runtime_tar",
+    srcs = [":app"],
+    package = "forge-example-private-runtime",
+)

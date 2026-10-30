@@ -26,7 +26,7 @@ From the Forge repository root, enter the shared workspace once:
 cd examples
 ```
 
-Build all four introductory programs without executing them on the host:
+Build all four Batch A programs without executing them on the host:
 
 ```bash
 ../forge-bazel build --config=debug \
@@ -53,11 +53,72 @@ Do not clean or create extra output bases between configurations.
 | [02 Native library](02-native-library/README.md) | `//02-native-library:app` | Implemented |
 | [03 CMake library](03-cmake-library/README.md) | `//03-cmake-library:app` | Implemented |
 | [04 Locked Conan dependency](04-conan-locked/README.md) | `//04-conan-locked:app` | Implemented |
+| [05 Private runtime](05-private-runtime/README.md) | `//05-private-runtime:runtime_tar` | Implemented |
+| [06 Debian package](06-debian-package/README.md) | `//06-debian-package:deb` | Implemented |
+| 06b Two dependent debs | `//06b-deb-dependency/a:a_deb`, `//06b-deb-dependency/b:b_deb` | Implemented (native delivery extension) |
+| [07 Release symbols](07-release-symbols/README.md) | `//07-release-symbols:symbols` | Implemented |
+| [08 Sanitizer errors](08-sanitizer-errors/README.md) | `//08-sanitizer-errors:app` | Implemented |
 
-Each program computes `result=41` through a different build path and must
-exit zero. Lesson packages do not consume another lesson's generated output.
-The [example plan](../documents/examples-plan.md) defines subsequent batches;
-lessons 05-10 are not implemented here.
+Lessons 01-04 compute `result=41` through different build paths and must exit
+zero. Lessons 05-08 add private runtime delivery, Debian packaging, independent
+Release symbols and sanitizer controls; lesson 08 uses `forge-san=43` for its
+clean control. Lesson packages do not consume another lesson's generated output.
+The [example plan](../documents/examples-plan.md) defines the remaining Batch C;
+lessons 09-10 are not implemented here. The independent 06b example covers a
+two-package deployment boundary; it is not a prerequisite for lesson 06.
+
+## Two Debian Packages: B Depends On A
+
+From `forge/examples`, use the controlled native shell to build and check the
+independent packages (the checker uses the same Bazel output base):
+
+```bash
+../forge-shell
+# Inside the shell:
+python3 06b-deb-dependency/check.py
+```
+
+Or build and inspect each output explicitly from the host in `forge/examples`:
+
+```bash
+../forge-bazel build --config=release //06b-deb-dependency/a:a_deb //06b-deb-dependency/b:b_deb
+dpkg-deb --field bazel-bin/06b-deb-dependency/b/b_deb.deb Depends
+dpkg-deb --contents bazel-bin/06b-deb-dependency/a/a_deb.deb
+dpkg-deb --contents bazel-bin/06b-deb-dependency/b/b_deb.deb
+```
+
+The A library is declared as B's Bazel `deps` and has a real `libforge_example_a.so.1`
+SONAME. B uses a relative RUNPATH to A's installed private library directory.
+Each module writes only `pkg_eros_deb(srcs = ...)`; B declares
+`depends = ["//06b-deb-dependency/a:a_deb"]`. Forge checks the selected A.deb's
+payload identity, architecture and ELF against B, omits A's library from B,
+and derives the versioned Debian `Depends` from A.deb's actual metadata. The checker verifies
+the ELF and package contents, then runs B from an isolated extraction root with
+A absent, present and removed, without `LD_LIBRARY_PATH`. It also exercises
+`dpkg` installation and removal dependency checks in a separate disposable,
+unprivileged root; this is not a clean target deployment or ABI acceptance test.
+This sample builds A from source; selecting an older published A release in CI
+requires a separately pinned artifact and matching compilation inputs.
+
+## Verify Delivery And Diagnostics Lessons
+
+From `forge/examples`, each implemented lesson has a checker that invokes
+`bazel` directly. Enter the controlled shell once:
+
+```bash
+../forge-shell
+# Inside the shell, still in forge/examples:
+python3 05-private-runtime/check.py
+python3 06-debian-package/check.py
+python3 07-release-symbols/check.py
+python3 08-sanitizer-errors/check.py
+```
+
+Lesson 05 extracts the private runtime, checks the SONAME chain and runs without
+`LD_LIBRARY_PATH`. Lesson 06 validates deb metadata, version precedence,
+architecture and extraction. Lesson 07 validates Release symbols and a GDB
+source breakpoint. Lesson 08 runs clean controls and real ASan/UBSan faults;
+TSan is reported as skipped when the host cannot initialize its runtime.
 
 ## Verify The Introductory Batch
 

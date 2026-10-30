@@ -329,12 +329,16 @@ def prune_runtime_entries(entries, mappings):
     return keep
 
 
-def validate_elf_closure(entries, environment, preset="linux_arm64"):
+def validate_elf_closure(entries, environment, preset="linux_arm64", external_libraries=None):
     """Validate every ELF, including data-only plugins, against its own RUNPATH."""
+    external_libraries = external_libraries or {}
+    used_packages = set()
     elfs = {path: inspect_elf(entry.source) for path, entry in entries.items()
             if entry.source is not None and entry.link is None and not entry.directory}
     elfs = {path: info for path, info in elfs.items() if info is not None}
     if not elfs:
+        if external_libraries:
+            raise PackagingError("external Debian runtime dependencies are not used by any ELF")
         return {}
     boundary = _runtime_boundary(environment, preset)
     expected = "amd64" if preset == "linux_x86_64" else "arm64"
@@ -361,8 +365,18 @@ def validate_elf_closure(entries, environment, preset="linux_arm64"):
                         raise PackagingError(f"runtime dependency architecture mismatch: {path} -> {candidate}")
                     found = True
                     break
+                if candidate in external_libraries:
+                    dependency = external_libraries[candidate]
+                    if dependency["machine"] != info["machine"] or dependency["soname"] != needed:
+                        raise PackagingError(f"external runtime dependency identity mismatch: {path} -> {candidate}")
+                    used_packages.add(dependency["package"])
+                    found = True
+                    break
             if not found and needed not in boundary:
                 raise PackagingError(f"missing private runtime dependency: {path} needs {needed}; own RUNPATH={info['runpath'] or info['rpath']}; declared SDK boundary does not supply it")
+    unused = {item["package"] for item in external_libraries.values()} - used_packages
+    if unused:
+        raise PackagingError(f"external Debian runtime dependencies are not used by any ELF: {sorted(unused)}")
     return elfs
 
 
@@ -548,6 +562,7 @@ def _manifest(entries, elfs, spec, environment):
             "environment_sha256": environment.get("environment_sha256"), "sdk": environment.get("sdk", {}),
             "runtime_boundary": sorted(_runtime_boundary(environment, spec["preset"])) if elfs else [],
             "provenance": provenance, "files": files,
+            "external_packages": spec.get("external_package_records", []),
             "debug_manifests": [{"label": document.get("label"), "variant": document.get("variant", {"preset": document.get("preset")}),
                                  "binaries": [{key: pair.get(key) for key in ("build_id", "binary_sha256", "debug_sha256", "architecture")} for pair in document.get("binaries", [])]}
                                 for document in [json.loads(Path(path).read_text()) for path in spec.get("debug_manifests", [])]]}
@@ -651,12 +666,159 @@ def export_debug_package(spec, environment):
     _write_archive(spec["output"], _tar_bytes(entries, prefix, extra))
 
 
+def _external_runtime(spec, environment):
+    """Check declared Forge debs and index their real, separately owned libraries."""
+    packages = spec.get("external_packages", [])
+    if not packages:
+        return {}
+    if spec.get("package_dir", "").strip("/") != "opt/eros/" + spec["package"]:
+        raise PackagingError("external Debian dependencies require the default /opt/eros/<package> layout")
+    libraries = {}
+    records = []
+    for item in packages:
+        metadata = json.loads(Path(item["manifest"]).read_text())
+        package = metadata["package"]
+        if package == spec["package"] or not re.fullmatch(r"[a-z0-9][a-z0-9+.-]+", package):
+            raise PackagingError(f"invalid external Debian package identity: {package!r}")
+        if any(record["package"] == package for record in records):
+            raise PackagingError(f"duplicate external Debian package: {package}")
+        if metadata.get("sha256") != _sha256(item["deb"]) or metadata.get("payload_sha256") != _sha256(item["payload"]):
+            raise PackagingError(f"external Debian package/payload identity mismatch: {package}")
+        expected = "amd64" if spec["preset"] == "linux_x86_64" or (spec["preset"] == "auto" and environment.get("host", {}).get("cpu") == "x86_64") else "arm64"
+        if metadata["architecture"] != expected or metadata["preset"] != spec["preset"]:
+            raise PackagingError(f"external Debian package architecture/preset mismatch: {package}")
+        root = "opt/eros/" + package
+        for entries in _read_payload(item["payload"]):
+            manifest_path = root + "/eros_manifest.json"
+            if manifest_path not in entries or entries[manifest_path].source is None:
+                raise PackagingError(f"external Debian package lacks a Forge runtime manifest: {package}")
+            manifest = json.loads(entries[manifest_path].source.read_text())
+            if (manifest.get("package") != package or manifest.get("install_root", "").strip("/") != root
+                    or manifest.get("preset") != spec["preset"]
+                    or manifest.get("environment_sha256") != environment.get("environment_sha256")):
+                raise PackagingError(f"external Debian runtime identity mismatch: {package}")
+            for path, entry in entries.items():
+                if not entry.directory and not path.startswith(root + "/"):
+                    raise PackagingError(f"external Debian payload escapes its private root: {path}")
+                if not path.startswith(root + "/lib/") or entry.directory:
+                    continue
+                local = path[len(root) + 1:]
+                external = "../" + package + "/" + local
+                resolved = resolve_entry(entries, path)
+                info = inspect_elf(resolved.source) if resolved.source else None
+                if info is None or not info["soname"]:
+                    continue
+                if info["architecture"] != expected:
+                    raise PackagingError(f"external Debian library architecture mismatch: {path}")
+                value = {"package": package, "local": local, "real": resolved.path[len(root) + 1:],
+                         "link": entry.link, "elf": info,
+                         "sha256": _sha256(entry.source) if entry.link is None else None,
+                         "size": entry.source.stat().st_size if entry.link is None else None,
+                         "machine": info["machine"], "soname": info["soname"]}
+                libraries[external] = value
+        if not any(value["package"] == package for value in libraries.values()):
+            raise PackagingError(f"external Debian package has no shared libraries: {package}")
+        records.append({"package": package, "version": metadata["version"], "architecture": metadata["architecture"],
+                        "deb_sha256": metadata["sha256"], "payload_sha256": metadata["payload_sha256"]})
+    spec["external_package_records"] = records
+    return libraries
+
+
+def _runtime_candidates(path, info, needed):
+    origin = posixpath.dirname(path)
+    for group in info["runpath"] or info["rpath"]:
+        for directory in group.split(":"):
+            if "$ORIGIN" not in directory and "${ORIGIN}" not in directory:
+                continue
+            directory = directory.replace("${ORIGIN}", origin).replace("$ORIGIN", origin)
+            yield posixpath.normpath(posixpath.join(directory, needed))
+
+
+def _referenced_external_libraries(entries, libraries):
+    direct = set()
+    has_elf = False
+    for path, entry in entries.items():
+        if entry.directory or entry.link is not None or entry.source is None:
+            continue
+        info = inspect_elf(entry.source)
+        if info is None:
+            continue
+        has_elf = True
+        for needed in info["needed"]:
+            for candidate in _runtime_candidates(path, info, needed):
+                if candidate in entries:
+                    break
+                external = libraries.get(candidate)
+                if external is not None:
+                    if external["machine"] == info["machine"] and external["soname"] == needed:
+                        direct.add((external["package"], external["real"]))
+                    break
+    selected = set(direct)
+    by_real = {(value["package"], value["real"]): value for value in libraries.values()}
+    pending = list(direct)
+    while pending:
+        package, real = pending.pop()
+        info = by_real[(package, real)]["elf"]
+        for needed in info["needed"]:
+            for candidate in _runtime_candidates("../" + package + "/" + real, info, needed):
+                external = libraries.get(candidate)
+                if external is not None:
+                    key = (external["package"], external["real"])
+                    if external["machine"] == info["machine"] and external["soname"] == needed and key not in selected:
+                        selected.add(key)
+                        pending.append(key)
+                    break
+    return selected, direct, has_elf
+
+
 def export_package(spec, environment):
     if spec.get("debug_only"):
         return export_debug_package(spec, environment)
+    external_libraries = _external_runtime(spec, environment)
     entries = collect_entries(spec["entries"])
+    selected, direct, has_elf = _referenced_external_libraries(entries, external_libraries) if external_libraries else (set(), set(), False)
+    selected_values = [value for value in external_libraries.values() if (value["package"], value["real"]) in selected]
+    removed = set()
+    matched_direct = set()
+    for external in selected_values:
+        path = external["local"]
+        entry = entries.get(path)
+        if entry is None:
+            continue
+        key = (external["package"], external["real"])
+        if entry.link != external["link"] or (entry.link is None and _sha256(entry.source) != external["sha256"]):
+            if key in direct:
+                raise PackagingError(f"bundled runtime library differs from external Debian package {external['package']}: {path}")
+            continue
+        removed.add(path)
+        if key in direct:
+            matched_direct.add(key)
+    if external_libraries and has_elf and not direct:
+        raise PackagingError("missing private runtime dependency: no declared external Debian library is resolved by ELF RUNPATH")
+    if direct - matched_direct or {value["package"] for value in external_libraries.values()} - {key[0] for key in matched_direct}:
+        raise PackagingError("external Debian library is missing from the Bazel runtime closure")
     entries = prune_runtime_entries(entries, spec["entries"])
-    elfs = validate_elf_closure(entries, environment, spec["preset"])
+    for path in removed:
+        entries.pop(path, None)
+    runtime_manifest_content = None
+    if external_libraries:
+        old_manifest = entries.get("runtime_manifest.json")
+        if old_manifest and old_manifest.source and old_manifest.source.parent.name.endswith(".runtime"):
+            # The native runfiles manifest predates the deb split; retain its identity but update its closure.
+            metadata = json.loads(old_manifest.source.read_text())
+            if metadata.get("schema_version") != 1 or metadata.get("install_root") != "" or not isinstance(metadata.get("files"), list):
+                raise PackagingError("invalid generated runtime_manifest.json in Bazel runtime closure")
+            entries.pop("runtime_manifest.json")
+            metadata["files"] = [item for item in metadata["files"] if item["path"] in entries]
+            metadata["external_packages"] = spec["external_package_records"]
+            runtime_manifest_content = (json.dumps(metadata, sort_keys=True, indent=2) + "\n").encode()
+        external_files = {value["sha256"] for value in selected_values if value["sha256"]}
+        sizes = {value["size"] for value in selected_values if value["size"] is not None}
+        for path, entry in entries.items():
+            if entry.source and not entry.directory and entry.link is None and entry.source.stat().st_size in sizes:
+                if _sha256(entry.source) in external_files:
+                    raise PackagingError(f"external Debian library is also bundled at {path}")
+    elfs = validate_elf_closure(entries, environment, spec["preset"], external_libraries)
     for manifest in spec.get("debug_manifests", []):
         validate_debug_manifest(manifest)
     manifest = _manifest(entries, elfs, spec, environment)
@@ -669,6 +831,8 @@ def export_package(spec, environment):
             raise PackagingError(f"test/program entry point is not an executable runtime file: {path}")
     write_json(spec["manifest"], manifest)
     extra = {"eros_manifest.json": (json.dumps(manifest, sort_keys=True, indent=2) + "\n").encode()}
+    if runtime_manifest_content is not None:
+        extra["runtime_manifest.json"] = runtime_manifest_content
     if "eros_manifest.json" in entries:
         raise PackagingError("reserved installation path collision: eros_manifest.json")
     if spec.get("test_package"):
@@ -768,6 +932,26 @@ def build_deb(spec):
         raise PackagingError(f"invalid Debian package name: {package!r}")
     version = resolve_version(spec.get("version", ""), define=spec.get("define_version", ""))
     architecture = spec["architecture"]
+    runtime = json.loads(Path(spec["runtime_manifest"]).read_text()) if spec.get("runtime_manifest") else None
+    external_packages = {item["package"]: item for item in runtime.get("external_packages", [])} if runtime else {}
+    depends = list(spec.get("depends", []))
+    for path in spec.get("dependency_manifests", []):
+        dependency = json.loads(Path(path).read_text())
+        name = dependency["package"]
+        exported = external_packages.get(name)
+        if (exported is None or exported["version"] != dependency["version"]
+                or exported["architecture"] != dependency["architecture"]
+                or exported["deb_sha256"] != dependency["sha256"]
+                or exported["payload_sha256"] != dependency["payload_sha256"]):
+            raise PackagingError(f"Debian dependency {name} does not match the checked external runtime payload")
+        if any(value.split(" ", 1)[0] == name for value in depends):
+            raise PackagingError(f"duplicate or conflicting Debian dependency: {name}")
+        depends.append(f"{name} (= {dependency['version']})")
+    if spec.get("runtime_manifest"):
+        for external in runtime.get("external_packages", []):
+            dependency = f"{external['package']} (= {external['version']})"
+            if runtime["package"] != package or external["architecture"] != architecture or dependency not in depends:
+                raise PackagingError(f"external runtime package requires matching name, architecture and Depends: {dependency}")
     for entries in _read_payload(spec["data"]):
         validate_architecture(entries, architecture)
         fields = {"Package": package, "Version": version, "Architecture": architecture,
@@ -778,8 +962,9 @@ def build_deb(spec):
         for key, attr in (("Depends", "depends"), ("Pre-Depends", "predepends"), ("Recommends", "recommends"),
                           ("Suggests", "suggests"), ("Conflicts", "conflicts"), ("Breaks", "breaks"),
                           ("Replaces", "replaces"), ("Provides", "provides"), ("Homepage", "homepage")):
-            if spec.get(attr):
-                fields[key] = ", ".join(spec[attr]) if isinstance(spec[attr], list) else spec[attr]
+            value = depends if attr == "depends" else spec.get(attr)
+            if value:
+                fields[key] = ", ".join(value) if isinstance(value, list) else value
         for key, value in fields.items():
             if "\n" in value or "\r" in value:
                 if key == "Description":
@@ -805,7 +990,8 @@ def build_deb(spec):
         Path(spec["output"]).write_bytes(output)
     if spec.get("manifest"):
         write_json(spec["manifest"], {"schema_version": 1, "package": package, "version": version,
-                                    "architecture": architecture, "preset": spec.get("preset"), "sha256": _sha256(spec["output"])})
+                                    "architecture": architecture, "preset": spec.get("preset"), "sha256": _sha256(spec["output"]),
+                                    "payload_sha256": _sha256(spec["data"])})
 
 
 def publish_native(spec, environment):

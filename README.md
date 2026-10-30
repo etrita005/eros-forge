@@ -133,8 +133,10 @@ python3 bazel/toolchain/generate_files.py --check
 
 The fixture command checks the installed build environment. Start learning with
 the [beginner examples](examples/README.md): lessons 01-04 cover native programs,
-libraries, CMake and a locked Conan dependency in one workspace. The
-[example roadmap](documents/examples-plan.md) identifies the remaining batches.
+libraries, CMake and a locked Conan dependency; lessons 05-08 cover private
+runtime delivery, Debian packaging, Release symbols and sanitizer controls in
+the same workspace. The [example roadmap](documents/examples-plan.md) identifies
+the remaining Batch C.
 
 ## Platforms And ABI
 

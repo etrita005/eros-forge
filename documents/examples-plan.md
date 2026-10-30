@@ -1,10 +1,14 @@
 # Beginner Example Roadmap
 
-Status: Batch A, lessons 01-04, is implemented in the shared
-[examples workspace](../examples/README.md). Its `check.py` builds and runs the
-native lessons in Debug/Release. Batches B and C remain planned and are not
-presented as implemented or validated. Public API references are in the
-[main guide](../README.md).
+Status: Batch A (lessons 01-04) and Batch B (lessons 05-08) are implemented in
+the shared [examples workspace](../examples/README.md). Batch A's `check.py`
+builds and runs the native lessons in Debug/Release; each Batch B lesson has its
+own `check.py` for its runtime, packaging, symbol or sanitizer evidence. Batch C
+(lessons 09-10) remains planned and is not presented as implemented or validated.
+Public API references are in the [main guide](../README.md).
+An independent [two-deb extension](../examples/README.md#two-debian-packages-b-depends-on-a)
+shows a real first-party package dependency; it is not a prerequisite for the
+implemented lesson 06.
 
 ## Learning Goals
 
@@ -43,8 +47,8 @@ files belong in a lesson; fixtures for exhaustive negative testing stay in
 
 ## Lessons And Implementation Status
 
-Lessons 01-04 link to implemented projects. Remaining directory names describe
-planned work and are not links to runnable projects.
+Lessons 01-08 link to implemented projects. Lessons 09-10 describe planned work
+and do not have runnable example directories yet.
 
 | Order / package | State | Main question | Public interfaces | Required observation |
 | --- | --- | --- | --- | --- |
@@ -52,10 +56,11 @@ planned work and are not links to runnable projects.
 | [02 native-library](../examples/02-native-library/README.md) | Implemented | How does one target consume another? | `eros_cc_library`, `deps`, public headers | Program uses a compiled library without consumer-side include/link workarounds |
 | [03 cmake-library](../examples/03-cmake-library/README.md) | Implemented | How does a CMake project become a native Bazel dependency? | `cmake_forge`, source filegroup, `install`, `exports` | Native consumer compiles, links and runs using only the exported dependency |
 | [04 conan-locked](../examples/04-conan-locked/README.md) | Implemented | How do I consume a locked compiled third-party dependency? | `cmake_conan_forge`, file recipe index, lock and profiles | Locked source builds, a real dependency symbol runs, and source/lock/cache audits pass |
-| 05 `private-runtime` | Planned | Which files does a dynamically linked program need? | Shared-library forms, `data`, `eros_install_map`, runtime layout | Private library/resource resolve without LD_LIBRARY_PATH |
-| 06 `debian-package` | Planned | How do I turn a target into a private deb? | `pkg_eros_tar`, `pkg_eros_deb`, architecture/version inputs | Metadata matches ELF; private layout works after native extraction |
-| 07 `release-symbols` | Planned | How do I debug optimized published code? | `separate_debug_info`, `eros_debug_info`, identity/source manifests | GDB resolves a real source breakpoint using matching symbols |
-| 08 `sanitizer-errors` | Planned | How do I prove business and dependency code are instrumented? | ASan, UBSan/TSan/combination and no_sanitizer | Real reports and independent clean controls |
+| [05 private-runtime](../examples/05-private-runtime/README.md) | Implemented | Which files does a dynamically linked program need? | Shared-library forms, `data`, `eros_install_map`, runtime layout | Private library/resource resolve without LD_LIBRARY_PATH |
+| [06 debian-package](../examples/06-debian-package/README.md) | Implemented | How do I turn a target into a private deb? | `pkg_eros_tar`, `pkg_eros_deb`, architecture/version inputs | Metadata matches ELF; private layout works after native extraction |
+| 06b `deb-dependency` | Implemented extension | How does B build against A but load A from a separate deb? | `pkg_eros_deb(srcs, depends)`, versioned SONAME and relative RUNPATH | A owns its library, B owns its executable; absent/present/removed A changes B's behavior |
+| [07 release-symbols](../examples/07-release-symbols/README.md) | Implemented | How do I debug optimized published code? | `separate_debug_info`, `eros_debug_info`, identity/source manifests | GDB resolves a real source breakpoint using matching symbols |
+| [08 sanitizer-errors](../examples/08-sanitizer-errors/README.md) | Implemented | How do I prove business and dependency code are instrumented? | ASan, UBSan/TSan/combination and no_sanitizer | Real reports and independent clean controls |
 | 09 `cross-build` | Planned | How do execution tools differ from the target ABI? | Cross preset, host/build profiles, environment manifest | Target ELF and actual compiler paths inspected; absent runtime stays unverified |
 | 10 `multiarch-package` | Planned | How does one invocation produce distinct configured payloads? | `pkg_eros_deb_multiarch`, architecture/preset branches | Configurations, ELF, metadata and provenance agree |
 
@@ -78,15 +83,22 @@ of the first successful build.
 
 ### Runtime And Delivery
 
-Lesson 05 starts with one shared dependency and one resource. A follow-up target
-can add a SONAME chain, an indirect library and a dlopen-only plugin with its own
-dependency. This makes the explicit runtime-root requirement visible without
+Lesson 05 uses one shared dependency, one resource and a versioned SONAME chain.
+A follow-up target can add an indirect library and a dlopen-only plugin with its
+own dependency. This makes the explicit runtime-root requirement visible without
 forcing every beginner through plugins immediately.
 
 Lesson 06 is self-contained rather than requiring a lesson 05 build artifact.
 It shows version precedence and automatic native architecture selection. Default
 commands inspect/extract the deb without sudo; clean target installation is a
 separate acceptance scope, not an inference from extraction.
+
+The separate 06b extension has a true first-party shared-library boundary: B
+builds with A in Bazel, B.deb declares an exact version dependency on A.deb,
+derived from the selected A.deb instead of a hard-coded B version, and B.deb
+does not duplicate A's shared library. Its native extraction and
+isolated `dpkg` checks do not claim clean target installation or target ABI
+validation.
 
 ### Debug And Sanitizers
 
@@ -100,6 +112,8 @@ fault, without source edits between modes. ASan is the first exercise; UBSan,
 TSan, both ASan/UBSan request orders and clearing state are subsequent exercises.
 Expected negative exits must be checked, not suppressed with an unconditional
 success command. A clean TSan schedule is not a successful fault detection.
+If the local container cannot initialize the TSan runtime, report a skip rather
+than turning an unobserved race into a pass.
 
 ### Cross And Multiple Configurations
 
@@ -123,7 +137,7 @@ a separate gate.
 | Batch | Lessons | State | Entry gate |
 | --- | --- | --- | --- |
 | A: first success and dependencies | 01-04 | Implemented | Controlled native build environment and pinned local dependency inputs |
-| B: useful delivery and diagnostics | 05-08 | Planned | Batch A concepts, native runtime, optional GDB/sanitizer prerequisites |
+| B: useful delivery and diagnostics | 05-08 | Implemented | Batch A concepts, native runtime, GDB and sanitizer checks |
 | C: platform-specific delivery | 09-10 | Planned | Compatible cross tools and explicit SDK/target validation prerequisites |
 
 Do not bundle all batches into the first implementation. Complete and validate
@@ -145,5 +159,5 @@ Cache-service provisioning, binary-revision adversarial tests, device scheduling
 cross-target cores and exhaustive failure injection belong to maintainer guides
 and the [acceptance suite](test-design.md), not the beginner first-run path.
 
-Implementing the remaining batches is a separate scoped step. Keep their
-environment-dependent acceptance distinct from Batch A's native verification.
+Implementing Batch C is a separate scoped step. Keep its environment-dependent
+acceptance distinct from the native verification used by Batches A and B.

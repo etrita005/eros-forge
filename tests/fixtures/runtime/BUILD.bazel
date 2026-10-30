@@ -92,6 +92,13 @@ pkg_eros_deb(name = "bad_all", data = ":runtime_tar", package = "forge-runtime",
 pkg_eros_tar(name = "resources_tar", srcs = [":resource"], package = "forge-resources")
 pkg_eros_tar(name = "direct_resource_tar", srcs = ["marker.txt"], package = "forge-direct-resources")
 pkg_eros_deb(name = "resources_all", data = ":resources_tar", package = "forge-resources", architecture = "all")
+pkg_eros_deb(
+    name = "select_depends",
+    data = ":resources_tar",
+    package = "forge-resources",
+    architecture = "all",
+    depends = select({"//conditions:default": ["libc6 (>= 2.31)"]}),
+)
 pkg_eros_deb(name = "unknown_cpu", data = ":resources_tar", package = "forge-resources", tags = ["manual"])
 platform(name = "unknown_cpu_platform", constraint_values = ["@platforms//os:linux", "@platforms//cpu:riscv64"])
 
